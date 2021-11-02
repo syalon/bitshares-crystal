@@ -1,0 +1,17 @@
+name: bitshares-crystal
+version: 0.1.0
+
+authors:
+  - syalon
+
+targets:
+  bitshares-crystal:
+    main: src/bitshares-crystal.cr
+
+dependencies:
+  crystal-secp256k1-zkp:
+    github: syalon/crystal-secp256k1-zkp
+
+crystal: 1.1.1
+
+license: MIT
