@@ -70,6 +70,7 @@ module BitShares
       fulldirname = File.join(rootdir, relativedir)
       Dir.each_child(fulldirname) do |s|
         next if s == "." || s == ".."
+        next if File.symlink?(fulldirname + s)
         if File.directory?(fulldirname + s)
           scan_dir_core(rootdir, relativedir + s + "/", blk)
         else
