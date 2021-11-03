@@ -173,7 +173,7 @@ module BitShares
         when Hash
           return new(Hash(String, self).new.tap { |result| value.each { |k, v| result[k.to_s] = new(v) unless v.nil? } })
         when Array
-          return new(Array(self).new.tap { |result| value.each { |v| result << new(v) } })
+          return new(Array(self).new.tap { |result| value.each { |v| result << new(v) unless v.nil? } })
         when Raw
           return value
         when JSON::Any
