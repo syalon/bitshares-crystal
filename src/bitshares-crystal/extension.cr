@@ -27,3 +27,15 @@ class Exception
     return "#{line} line of script '#{file}' has occurred #{self.class.name}. \n\n#{self.message}\n\nStack:\n#{back.join("\n")}\n"
   end
 end
+
+struct JSON::Any
+  def to_i32 : Int32
+    return as_s.to_i32 if @raw.is_a?(String)
+    return as_i
+  end
+
+  def to_i64 : Int64
+    return as_s.to_i64 if @raw.is_a?(String)
+    return as_i.to_i64
+  end
+end
