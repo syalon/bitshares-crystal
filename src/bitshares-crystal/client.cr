@@ -235,11 +235,9 @@ module BitShares
 
     # OP - 存储账号自定义数据（REMARK：在 custom OP 的 data 字段中存储数据）
     def do_account_storage_map_core(account, account_storage_map_opdata)
-      account_value = cache.query_account(account).not_nil!
-
       op_custom = {
         :fee   => default_fee,
-        :payer => account_value["id"].as_s,
+        :payer => to_account_id(account),
         :id    => 0,
         :data  => Operations::T_custom_plugin_operation.to_binary({:data => [0, account_storage_map_opdata]}, @graphene_address_prefix),
       }
@@ -254,6 +252,107 @@ module BitShares
         :key_values => key_values,
       }
       return do_account_storage_map_core(account, op_account_storage_map)
+    end
+
+    def make_samet_fund_create(account, asset_id_or_symbol, balance, fee_rate)
+      asset_data = cache.query_asset(asset_id_or_symbol).not_nil!
+      opdata = {
+        :fee           => default_fee,
+        :owner_account => to_account_id(account),
+        :asset_type    => asset_data["id"].as_s,
+        :balance       => (balance.to_f64 * (10 ** asset_data["precision"].as_i)).to_i64,
+        :fee_rate      => (fee_rate * 1000000).to_u32,
+      }
+      return opdata
+    end
+
+    def do_samet_fund_create(account, asset_id_or_symbol, balance, fee_rate)
+      build { |tx| tx.add_operation :samet_fund_create, make_samet_fund_create(account, asset_id_or_symbol, balance, fee_rate) }
+    end
+
+    def make_samet_fund_delete(account, fund : JSON::Any | String)
+      fund_id = if fund.is_a?(String)
+                  fund
+                else
+                  fund["id"].as_s
+                end
+      opdata = {
+        :fee           => default_fee,
+        :owner_account => to_account_id(account),
+        :fund_id       => fund_id,
+      }
+      return opdata
+    end
+
+    def do_samet_fund_delete(account, fund : JSON::Any | String)
+      build { |tx| tx.add_operation :samet_fund_delete, make_samet_fund_delete(account, fund) }
+    end
+
+    # TODO:
+    #   class OP_samet_fund_update < T_composite
+    #     add_field :fee, T_asset
+    #     add_field :owner_account, Tm_protocol_id_type(ObjectType::Account)
+    #     add_field :fund_id, Tm_protocol_id_type(ObjectType::Samet_fund)
+
+    #     add_field :delta_amount, Tm_optional(T_asset)
+    #     add_field :new_fee_rate, Tm_optional(T_uint32)
+
+    #     add_field :extensions, Tm_set(T_future_extensions)
+    #   end
+
+    def make_samet_fund_borrow(borrower, fund : JSON::Any | String, borrow_asset_id_or_symbol, borrow_amount)
+      asset_data = cache.query_asset(borrow_asset_id_or_symbol).not_nil!
+      fund_id = if fund.is_a?(String)
+                  fund
+                else
+                  fund["id"].as_s
+                end
+
+      opdata = {
+        :fee           => default_fee,
+        :borrower      => to_account_id(borrower),
+        :fund_id       => fund_id,
+        :borrow_amount => {:amount => (borrow_amount.to_f64 * (10 ** asset_data["precision"].as_i)).to_i64, :asset_id => asset_data["id"].as_s},
+      }
+      return opdata
+    end
+
+    def do_samet_fund_borrow(borrower, fund : JSON::Any | String, borrow_asset_id_or_symbol, borrow_amount)
+      build { |tx| tx.add_operation :samet_fund_borrow, make_samet_fund_borrow(borrower, fund, borrow_asset_id_or_symbol, borrow_amount) }
+    end
+
+    def make_samet_fund_repay(borrower, fund : JSON::Any | String, asset_id_or_symbol, repay_amount, fee_amount)
+      asset_data = cache.query_asset(asset_id_or_symbol).not_nil!
+      precision = asset_data["precision"].as_i
+      asset_id = asset_data["id"].as_s
+
+      fund_id = if fund.is_a?(String)
+                  fund
+                else
+                  fund["id"].as_s
+                end
+
+      opdata = {
+        :fee          => default_fee,
+        :account      => to_account_id(borrower),
+        :fund_id      => fund_id,
+        :repay_amount => {:amount => (repay_amount.to_f64 * (10 ** precision)).to_i64, :asset_id => asset_id},
+        :fund_fee     => {:amount => (fee_amount.to_f64 * (10 ** precision)).to_i64, :asset_id => asset_id},
+      }
+      return opdata
+    end
+
+    def do_samet_fund_repay(borrower, fund : JSON::Any | String, asset_id_or_symbol, repay_amount, fee_amount)
+      build { |tx| tx.add_operation :samet_fund_repay, make_samet_fund_repay(borrower, fund, asset_id_or_symbol, repay_amount, fee_amount) }
+    end
+
+    private def to_account_id(account : JSON::Any | String) : String
+      oid = if account.is_a?(String)
+              cache.query_account(account).not_nil!["id"].as_s
+            else
+              account["id"].as_s
+            end
+      return oid
     end
 
     private def default_fee

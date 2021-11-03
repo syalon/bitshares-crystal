@@ -9,6 +9,25 @@ class TestTask < BitShares::Task
 end
 
 describe BitShares do
+  # it "test tx" do
+  #   client = BitShares::Client.new BitShares::Config.new.tap { |cfg| cfg.switch_bts_testnet! }
+  #   client.wallet.clear
+
+  #   client.wallet.import_password("test2021", "123456")
+
+  #   pp client.do_samet_fund_create("test2021", "1.3.0", 12000, 0.025)
+
+  #   # => 闪电贷：借款&还款
+  #   account = "test2021"
+  #   fund = "1.20.6"
+  #   pp client.build { |tx|
+  #     tx.add_operation :samet_fund_borrow, client.make_samet_fund_borrow(account, fund, "1.3.0", 1300)
+  #     tx.add_operation :samet_fund_repay, client.make_samet_fund_repay(account, fund, "1.3.0", 1300, 326)
+  #   }
+
+  #   exit
+  # end
+
   it "test generate keys" do
     prikey = Secp256k1Zkp::PrivateKey.from_account_and_password("test2021", "123456", "active")
     prikey.to_public_key.to_wif("TEST").should eq("TEST82xxRmEvn79T7ej5NXT8G5nXMMdHDTMrhcAsV4zfK23MMU92ZK")
