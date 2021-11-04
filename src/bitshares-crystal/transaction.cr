@@ -136,7 +136,7 @@ module BitShares
             got_responsed = true
             # TODO: timeout 查询 tx id是否进块，而不是单纯忽略。待处理
             # TODO:cancel callback call
-            result_channel.send(GrapheneWebSocket::TimeoutError.new)
+            result_channel.send(TimeoutError.new)
           end
         end
       end

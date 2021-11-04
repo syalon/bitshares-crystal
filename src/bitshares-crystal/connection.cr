@@ -1,36 +1,12 @@
 require "http/web_socket"
 require "json"
 
+require "./error"
+
 module BitShares
   class GrapheneWebSocket
     KGWS_MAX_SEND_LIFE = 4
     KGWS_MAX_RECV_LIFE = 8
-
-    class BaseError < Exception
-    end
-
-    class ResponseError < BaseError
-      getter error : JSON::Any
-
-      def initialize(err)
-        super()
-        @error = err
-      end
-
-      def inspect(io : IO) : Nil
-        @error.inspect(io)
-      end
-
-      def to_s(io : IO) : Nil
-        @error.to_s(io)
-      end
-    end
-
-    class TimeoutError < BaseError
-    end
-
-    class SocketClosed < BaseError
-    end
 
     alias ChannelDataType = JSON::Any | BaseError
 
@@ -54,7 +30,7 @@ module BitShares
 
     # 同步调用服务器 API 接口
     def call(api_name : String, method : String, params)
-      raise SocketClosed.new unless @status.logined?
+      raise SocketClosed.new("Socket is not connected.") unless @status.logined?
       return async_send_data(@api_ids[api_name], method, params).await
     end
 
@@ -66,7 +42,7 @@ module BitShares
 
     # 异步调用服务器 API 接口
     def async_call(api_name : String, method : String, params)
-      raise SocketClosed.new unless @status.logined?
+      raise SocketClosed.new("Socket is not connected.") unless @status.logined?
       async_send_data(@api_ids[api_name], method, params)
     end
 
@@ -241,7 +217,7 @@ module BitShares
       @timer_keep_alive = nil
 
       # => 连接中断，关闭所有 callback 和 等待中的 await 对象。
-      @normal_callback_hash.tap { |hash| hash.each { |callback_id, _| @channel.send SocketClosed.new } }.clear
+      @normal_callback_hash.tap { |hash| hash.each { |callback_id, _| @channel.send SocketClosed.new("on close, msg: #{str} code: #{code}.") } }.clear
       @subscribe_callback_hash.tap { |hash| hash.each { |callback_id, sub_callback| sub_callback.call(false, "on_close") } }.clear
     end
 

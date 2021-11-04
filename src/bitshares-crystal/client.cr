@@ -38,12 +38,28 @@ module BitShares
     end
 
     # API - 根据对象ID查询对象。
+    #
+    # DEPRECATED: Use `query_one_object?`
     def query_one_object(oid : String) : JSON::Any?
+      return query_one_object?(oid)
+    end
+
+    def query_one_object?(oid : String) : JSON::Any?
       return query_objects(oid)[oid]?
     end
 
+    def query_one_object!(oid : String) : JSON::Any
+      return query_one_object?(oid).not_nil!
+    end
+
     # API - 查询账号信息。
+    #
+    # DEPRECATED: Use `query_account?`
     def query_account(account_name_or_id : String) : JSON::Any?
+      return query_account?(account_name_or_id)
+    end
+
+    def query_account?(account_name_or_id : String) : JSON::Any?
       data = call_db("get_accounts", [[account_name_or_id, false]]).as_a?
       if data && !data.empty?
         return data.first
@@ -52,14 +68,28 @@ module BitShares
       end
     end
 
+    def query_account!(account_name_or_id : String) : JSON::Any?
+      return query_account?(account_name_or_id).not_nil!
+    end
+
     # API - 查询资产信息。
+    #
+    # DEPRECATED: Use `query_asset?`
     def query_asset(asset_symbol_or_id : String) : JSON::Any?
+      return query_asset?(asset_symbol_or_id)
+    end
+
+    def query_asset?(asset_symbol_or_id : String) : JSON::Any?
       data = call_db("get_assets", [[asset_symbol_or_id, false]]).as_a?
       if data && !data.empty?
         return data.first
       else
         return nil
       end
+    end
+
+    def query_asset!(asset_symbol_or_id : String) : JSON::Any?
+      return query_asset?(asset_symbol_or_id).not_nil!
     end
 
     # API - 根据见证人账号ID查询见证人信息
