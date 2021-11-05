@@ -216,6 +216,8 @@ module BitShares
     end
 
     private def on_close(code, str)
+      Log.info { "websocket trigger on close event, str: #{str} code: #{code}. current status: #{@status}" }
+
       return if @status.closed?
 
       # => 处于 pending、logined 状态则直接关闭
