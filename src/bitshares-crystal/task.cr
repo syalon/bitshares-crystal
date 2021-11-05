@@ -44,6 +44,7 @@ module BitShares
     end
 
     def run
+      Log.info { "#{self.class.name} task start." }
       loop do
         begin
           main
@@ -53,6 +54,7 @@ module BitShares
         end
         sleep(3)
       end
+      Log.info { "#{self.class.name} task finish." }
     end
 
     # def on_system_exit

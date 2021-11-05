@@ -2,6 +2,8 @@ require "./task"
 
 module BitShares
   class App
+    Log = ::Log.for("app")
+
     def self.instance
       @@__instance ||= new
       @@__instance.not_nil!
@@ -69,7 +71,7 @@ module BitShares
     end
 
     private def tick_per_minute
-      # p! "tick"
+      # TODO:ing
       # @task_list.each{|t| t.tick_per_minute}
       # @last_tick_time = Time.now.tap{|t| tick_per_day if @last_tick_time && @last_tick_time.day != t.day}
     end
