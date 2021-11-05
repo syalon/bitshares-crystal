@@ -1,10 +1,13 @@
 require "http/web_socket"
 require "json"
+require "log"
 
 require "./error"
 
 module BitShares
   class GrapheneWebSocket
+    Log = ::Log.for("websocket")
+
     KGWS_MAX_SEND_LIFE = 4
     KGWS_MAX_RECV_LIFE = 8
 
@@ -30,7 +33,7 @@ module BitShares
 
     # 同步调用服务器 API 接口
     def call(api_name : String, method : String, params)
-      raise SocketClosed.new("Socket is not connected.") unless @status.logined?
+      raise SocketClosed.new("socket is not connected, status: #{@status}.") unless @status.logined?
       return async_send_data(@api_ids[api_name], method, params).await
     end
 
@@ -42,7 +45,7 @@ module BitShares
 
     # 异步调用服务器 API 接口
     def async_call(api_name : String, method : String, params)
-      raise SocketClosed.new("Socket is not connected.") unless @status.logined?
+      raise SocketClosed.new("socket is not connected, status: #{@status}.") unless @status.logined?
       async_send_data(@api_ids[api_name], method, params)
     end
 
@@ -98,6 +101,8 @@ module BitShares
     # ● (private) 打开 websocket 并等待连接成功
     # --------------------------------------------------------------------------
     private def open_websocket(uri : String, timeout : Time::Span? = nil) : HTTP::WebSocket
+      Log.info { "ready to open url: #{uri}" }
+
       wait_connecting_channel = Channel(HTTP::WebSocket | Exception).new(1)
       connect_status = Status::Pending
 
@@ -139,6 +144,8 @@ module BitShares
       sock_of_err = wait_connecting_channel.receive
       raise sock_of_err if sock_of_err.is_a?(Exception)
 
+      Log.info { "open url successful: #{uri}" }
+
       # => 返回
       return sock_of_err.not_nil!
     end
@@ -168,6 +175,8 @@ module BitShares
 
       # => 启动心跳计时器
       @timer_keep_alive = start_loop_timer(seconds: 5) { __internal_keep_alive_timer_tick }
+
+      Log.info { "login to server done." }
 
       # => 更新状态：已登录
       @status = Status::Logined
@@ -321,11 +330,10 @@ module BitShares
 
   class GrapheneConnection
     # --------------------------------------------------------------------------
-    # ● (public) 异步调用API
+    # ● (public) 调用API
     # => api_name   - database、network_broadcast、history、custom_operations
     # => REMARK：asset api大部分节点默认未开启。
     # --------------------------------------------------------------------------
-
     def call(api_name, method, params = nil)
       call_api(api_name, method, params)
     end
@@ -349,59 +357,6 @@ module BitShares
     def call_asset(method, params = nil)
       call("asset", method, params)
     end
-
-    # # --------------------------------------------------------------------------
-    # # ● (public) 同步调用API，支持安全和非安全调用，安全调用失败时返回nil，非安全调用失败抛出异常。
-    # # => api_name   - database、network_broadcast、history、custom_operations
-    # # => REMARK：asset api大部分节点默认未开启。
-    # # --------------------------------------------------------------------------
-    # def call(*args)
-    #   async_call(*args).await
-    # end
-
-    # def call?(*args)
-    #   async_call(*args).await?
-    # end
-
-    # def call_db(*args)
-    #   async_call_db(*args).await
-    # end
-
-    # def call_db?(*args)
-    #   async_call_db(*args).await?
-    # end
-
-    # def call_net(*args)
-    #   async_call_net(*args).await
-    # end
-
-    # def call_net?(*args)
-    #   async_call_net(*args).await?
-    # end
-
-    # def call_history(*args)
-    #   async_call_history(*args).await
-    # end
-
-    # def call_history?(*args)
-    #   async_call_history(*args).await?
-    # end
-
-    # def call_custom_operations(*args)
-    #   async_call_custom_operations(*args).await
-    # end
-
-    # def call_custom_operations?(*args)
-    #   async_call_custom_operations(*args).await?
-    # end
-
-    # def call_asset(*args)
-    #   async_call_asset(*args).await
-    # end
-
-    # def call_asset?(*args)
-    #   async_call_asset(*args).await?
-    # end
 
     getter config : BitShares::Config
 
