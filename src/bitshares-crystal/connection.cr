@@ -5,9 +5,9 @@ require "log"
 require "./error"
 
 module BitShares
-  class GrapheneWebSocket
-    Log = ::Log.for("websocket")
+  Log = ::Log.for("websocket")
 
+  class GrapheneWebSocket
     KGWS_MAX_SEND_LIFE = 4
     KGWS_MAX_RECV_LIFE = 8
 
@@ -72,6 +72,7 @@ module BitShares
     # 关闭websocket连接，会自动触发 on_close 事件。
     def close_websocket(reason = "")
       return if @status.closed? || @status.closing?
+      Log.info { "user call close_websocket: #{reason}" }
       @status = Status::Closing
       @websock.try &.close
     end
@@ -400,9 +401,17 @@ module BitShares
     end
 
     private def gen_websocket
-      # TODO:心跳 待处理
-      # lambda { |sock| on_keep_alive_callback(sock) # TODO:args lambda
       @sock = GrapheneWebSocket.new(gen_next_ws_node, Time::Span.new(seconds: 15), @config.api_list)
+      @sock.not_nil!.on_keep_alive do |sock|
+        if sock.status.logined?
+          begin
+            head_block_number = sock.call("database", "get_objects", [["2.1.0"]]).as_a.first["head_block_number"].as_i.to_u64
+            Log.info { "heartbeat tick ok, head block number: #{head_block_number}." }
+          rescue e : Exception
+            Log.error { "heartbeat tick failed, error: #{e.message}" }
+          end
+        end
+      end
     end
 
     private def safe_get_websocket : GrapheneWebSocket
@@ -455,20 +464,5 @@ module BitShares
     private def call_api(api_name : String, method : String, params)
       return safe_get_websocket.call(api_name, method, params)
     end
-
-    # TODO:heart beat
-    # #--------------------------------------------------------------------------
-    # # ● (private) 心跳。
-    # #--------------------------------------------------------------------------
-    # def on_keep_alive_callback(sock)
-    #   cb_then = lambda do |data|
-    #     @config.logger&.debug 'heartbeat tick ok~'
-    #   end
-    #   cb_catch = lambda do |error|
-    #     @config.logger&.warn "heartbeat tick failed, error: #{error}."
-    #   end
-    #   async_call_db("get_objects", [['2.1.0']]).then(cb_then, cb_catch) if sock.connected?
-    # end
-
   end
 end
