@@ -458,7 +458,7 @@ module BitShares
       end
 
       def self.sort_by(args : Arguments, a : Raw, b : Raw)
-        return Secp256k1Zkp::PublicKey.from_wif(a.as_s, args.graphene_address_prefix).to_blockchain_address <=> Secp256k1Zkp::PublicKey.from_wif(b.as_s, args.graphene_address_prefix).to_blockchain_address
+        return Secp256k1Zkp::PublicKey.from_wif(a.as_s, args.graphene_address_prefix).to_address <=> Secp256k1Zkp::PublicKey.from_wif(b.as_s, args.graphene_address_prefix).to_address
       end
     end
 
@@ -798,6 +798,14 @@ module BitShares
       add_field :to, T_public_key
       add_field :nonce, T_uint64
       add_field :message, Tm_bytes(Nil)
+    end
+
+    class OP_balance_claim < T_composite
+      add_field :fee, T_asset
+      add_field :deposit_to_account, Tm_protocol_id_type(ObjectType::Account)
+      add_field :balance_to_claim, Tm_protocol_id_type(ObjectType::Balance)
+      add_field :balance_owner_key, T_public_key
+      add_field :total_claimed, T_asset
     end
 
     class OP_transfer < T_composite

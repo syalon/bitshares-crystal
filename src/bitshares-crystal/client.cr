@@ -130,6 +130,24 @@ module BitShares
       # return true
     end
 
+    # OP - 提取资金
+    def make_balance_claim(deposit_to_account, balance_to_claim, balance_owner_key, total_claimed_amount, total_claimed_asset_id)
+      asset_data = cache.query_asset(total_claimed_asset_id).not_nil!
+
+      opdata = {
+        :fee                => default_fee,
+        :deposit_to_account => to_account_id(deposit_to_account),
+        :balance_to_claim   => balance_to_claim,
+        :balance_owner_key  => balance_owner_key,
+        :total_claimed      => {:amount => (total_claimed_amount.to_f64 * (10 ** asset_data["precision"].as_i)).to_i64, :asset_id => asset_data["id"].as_s},
+      }
+      return opdata
+    end
+
+    def do_balance_claim(deposit_to_account, balance_to_claim, balance_owner_key, total_claimed_amount, total_claimed_asset_id)
+      build { |tx| tx.add_operation :balance_claim, make_balance_claim(deposit_to_account, balance_to_claim, balance_owner_key, total_claimed_amount, total_claimed_asset_id) }
+    end
+
     # OP - 转账操作
     # *from* 付款账号
     # *to* 收款账号
