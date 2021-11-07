@@ -458,7 +458,7 @@ module BitShares
       end
 
       def self.sort_by(args : Arguments, a : Raw, b : Raw)
-        return Secp256k1Zkp::PublicKey.from_wif(a.as_s, args.graphene_address_prefix).to_address <=> Secp256k1Zkp::PublicKey.from_wif(b.as_s, args.graphene_address_prefix).to_address
+        return Secp256k1Zkp::PublicKey.from_wif(a.as_s, args.graphene_address_prefix).to_address.bytes <=> Secp256k1Zkp::PublicKey.from_wif(b.as_s, args.graphene_address_prefix).to_address.bytes
       end
     end
 
