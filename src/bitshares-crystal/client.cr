@@ -189,6 +189,20 @@ module BitShares
       build { |tx| tx.add_operation Blockchain::Operations::Account_create, op_data }
     end
 
+    # OP - 升级终生会员
+    def make_account_upgrade(account)
+      opdata = {
+        :fee                        => default_fee,
+        :account_to_upgrade         => to_account_id(account),
+        :upgrade_to_lifetime_member => true,
+      }
+      return opdata
+    end
+
+    def do_account_upgrade(account)
+      build { |tx| tx.add_operation :account_upgrade, make_account_upgrade(account) }
+    end
+
     # OP - 更新见证人
     def do_witness_update(witness_account_name_or_id, new_url = nil, new_signing_key = nil)
       witness = cache.query_witness(witness_account_name_or_id).not_nil!
