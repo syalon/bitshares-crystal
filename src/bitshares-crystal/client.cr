@@ -62,7 +62,9 @@ module BitShares
     def query_account?(account_name_or_id : String) : JSON::Any?
       data = call_db("get_accounts", [[account_name_or_id, false]]).as_a?
       if data && !data.empty?
-        return data.first
+        first = data.first
+        return nil if first.nil? || first.raw.nil?
+        return first
       else
         return nil
       end
@@ -82,7 +84,9 @@ module BitShares
     def query_asset?(asset_symbol_or_id : String) : JSON::Any?
       data = call_db("get_assets", [[asset_symbol_or_id, false]]).as_a?
       if data && !data.empty?
-        return data.first
+        first = data.first
+        return nil if first.nil? || first.raw.nil?
+        return first
       else
         return nil
       end
@@ -130,9 +134,87 @@ module BitShares
       # return true
     end
 
+    # TODO:
+    # class T_asset_options < T_composite
+    #   add_field :max_supply, T_int64
+    #   add_field :market_fee_percent, T_uint16
+    #   add_field :max_market_fee, T_int64
+    #   add_field :issuer_permissions, T_uint16
+    #   add_field :flags, T_uint16
+    #   add_field :core_exchange_rate, T_price
+    #   add_field :whitelist_authorities, Tm_set(Tm_protocol_id_type(ObjectType::Account))
+    #   add_field :blacklist_authorities, Tm_set(Tm_protocol_id_type(ObjectType::Account))
+    #   add_field :whitelist_markets, Tm_set(Tm_protocol_id_type(ObjectType::Asset))
+    #   add_field :blacklist_markets, Tm_set(Tm_protocol_id_type(ObjectType::Asset))
+    #   add_field :description, T_string
+    #   add_field :extensions, Tm_extension[
+    #     Field[:reward_percent, T_uint16],
+    #     Field[:whitelist_market_fee_sharing, Tm_set(Tm_protocol_id_type(ObjectType::Account))],
+    #   ]
+    # end
+    # def make_asset_options(max_supply, market_fee_percent, max_market_fee, issuer_permissions, flags, core_exchange_rate, description)
+    # end
+
+    # TODO:
+    # class T_bitasset_options < T_composite
+    #   add_field :feed_lifetime_sec, T_uint32
+    #   add_field :minimum_feeds, T_uint8
+    #   add_field :force_settlement_delay_sec, T_uint32
+    #   add_field :force_settlement_offset_percent, T_uint16
+    #   add_field :maximum_force_settlement_volume, T_uint16
+    #   add_field :short_backing_asset, Tm_set(Tm_protocol_id_type(ObjectType::Asset))
+    #   add_field :extensions, Tm_extension[
+    #     # BSIP-77
+    #     Field[:initial_collateral_ratio, T_uint16],
+    #     # BSIP-75
+    #     Field[:maintenance_collateral_ratio, T_uint16],
+    #     # BSIP-75
+    #     Field[:maximum_short_squeeze_ratio, T_uint16],
+    #     # BSIP 74
+    #     Field[:margin_call_fee_ratio, T_uint16],
+    #     # BSIP-87
+    #     Field[:force_settle_fee_percent, T_uint16],
+    #   ]
+    # end
+
+    # TODO:
+    # class OP_asset_create < T_composite
+    #   add_field :fee, T_asset
+    #   add_field :issuer, Tm_protocol_id_type(ObjectType::Account)
+    #   add_field :symbol, T_string
+    #   add_field :precision, T_uint8
+    #   add_field :common_options, T_asset_options
+    #   add_field :bitasset_opts, Tm_optional(T_bitasset_options)
+    #   add_field :is_prediction_market, T_bool
+    #   add_field :extensions, Tm_set(T_future_extensions)
+    # end
+    def make_asset_create(issuer, symbol : String, precision : UInt8, common_options, bitasset_opts = nil, is_prediction_market = false)
+      opdata = {
+        :fee                  => default_fee,
+        :issuer               => to_account_id(issuer),
+        :symbol               => symbol,
+        :precision            => precision,
+        :common_options       => common_options,
+        :bitasset_opts        => bitasset_opts,
+        :is_prediction_market => is_prediction_market,
+      }
+      return opdata
+    end
+
+    def do_asset_create(issuer, symbol : String, precision : UInt8, common_options, bitasset_opts = nil, is_prediction_market = false)
+      build { |tx| tx.add_operation :asset_create, make_asset_create(issuer, symbol, precision, common_options, bitasset_opts, is_prediction_market) }
+    end
+
     # OP - 提取资金
     def make_balance_claim(deposit_to_account, balance_to_claim, balance_owner_key, total_claimed_amount, total_claimed_asset_id)
       asset_data = cache.query_asset(total_claimed_asset_id).not_nil!
+
+      # TODO:check?? balance->owner
+      # op.balance_owner_key == balance->owner ||
+      # pts_address(op.balance_owner_key, false, 56) == balance->owner ||
+      # pts_address(op.balance_owner_key, true, 56) == balance->owner ||
+      # pts_address(op.balance_owner_key, false, 0) == balance->owner ||
+      # pts_address(op.balance_owner_key, true, 0) == balance->owner,
 
       opdata = {
         :fee                => default_fee,
@@ -316,6 +398,121 @@ module BitShares
       return do_account_storage_map_core(account, op_account_storage_map)
     end
 
+    # OP - 创建流动性池
+    # taker_fee_percent - 有效值 0..100 单位：百分之1
+    # withdrawal_fee_percent - 有效值 0..100 单位：百分之1
+    def make_liquidity_pool_create(account, asset_a, asset_b, share_asset, taker_fee_percent, withdrawal_fee_percent)
+      asset_data_a = cache.query_asset(asset_a).not_nil!
+      asset_data_b = cache.query_asset(asset_b).not_nil!
+      asset_data_share = cache.query_asset(share_asset).not_nil!
+
+      opdata = {
+        :fee                    => default_fee,
+        :account                => to_account_id(account),
+        :asset_a                => asset_data_a["id"].as_s,
+        :asset_b                => asset_data_b["id"].as_s,
+        :share_asset            => asset_data_share["id"].as_s,
+        :taker_fee_percent      => ([[0, taker_fee_percent].max, 100].min * Const::GRAPHENE_1_PERCENT).to_u16,
+        :withdrawal_fee_percent => ([[0, withdrawal_fee_percent].max, 100].min * Const::GRAPHENE_1_PERCENT).to_u16,
+      }
+
+      return opdata
+    end
+
+    def do_liquidity_pool_create(account, asset_a, asset_b, share_asset, taker_fee_percent, withdrawal_fee_percent)
+      build { |tx| tx.add_operation :liquidity_pool_create, make_liquidity_pool_create(account, asset_a, asset_b, share_asset, taker_fee_percent, withdrawal_fee_percent) }
+    end
+
+    # OP - 删除流动性池
+    def make_liquidity_pool_delete(account, pool_or_id)
+      opdata = {
+        :fee     => default_fee,
+        :account => to_account_id(account),
+        :pool    => to_oid(pool_or_id),
+      }
+      return opdata
+    end
+
+    def do_liquidity_pool_delete(account, pool_or_id)
+      build { |tx| tx.add_operation :liquidity_pool_delete, make_liquidity_pool_delete(account, pool_or_id) }
+    end
+
+    # OP - 流动性池注资
+    def make_liquidity_pool_deposit(account, pool_or_id, amount_a, amount_b)
+      pool = if pool_or_id.is_a?(String)
+               cache.query_one_object(pool_or_id).not_nil!
+             else
+               pool_or_id.as(JSON::Any)
+             end
+
+      asset_data_a = cache.query_asset(pool["asset_a"].as_s).not_nil!
+      asset_data_b = cache.query_asset(pool["asset_b"].as_s).not_nil!
+
+      opdata = {
+        :fee      => default_fee,
+        :account  => to_account_id(account),
+        :pool     => to_oid(pool_or_id),
+        :amount_a => {:amount => (amount_a.to_f64 * (10 ** asset_data_a["precision"].as_i)).to_i64, :asset_id => asset_data_a["id"].as_s},
+        :amount_b => {:amount => (amount_b.to_f64 * (10 ** asset_data_b["precision"].as_i)).to_i64, :asset_id => asset_data_b["id"].as_s},
+      }
+
+      return opdata
+    end
+
+    def do_liquidity_pool_deposit(account, pool_or_id, amount_a, amount_b)
+      build { |tx| tx.add_operation :liquidity_pool_deposit, make_liquidity_pool_deposit(account, pool_or_id, amount_a, amount_b) }
+    end
+
+    # OP - 流动性池撤资
+    def make_liquidity_pool_withdraw(account, pool_or_id, share_amount)
+      pool = if pool_or_id.is_a?(String)
+               cache.query_one_object(pool_or_id).not_nil!
+             else
+               pool_or_id.as(JSON::Any)
+             end
+
+      share_asset = cache.query_asset(pool["share_asset"].as_s).not_nil!
+
+      opdata = {
+        :fee          => default_fee,
+        :account      => to_account_id(account),
+        :pool         => to_oid(pool_or_id),
+        :share_amount => {:amount => (share_amount.to_f64 * (10 ** share_asset["precision"].as_i)).to_i64, :asset_id => share_asset["id"].as_s},
+      }
+
+      return opdata
+    end
+
+    def do_liquidity_pool_withdraw(account, pool_or_id, share_amount)
+      build { |tx| tx.add_operation :liquidity_pool_withdraw, make_liquidity_pool_withdraw(account, pool_or_id, share_amount) }
+    end
+
+    # OP - 流动性池兑换
+    def make_liquidity_pool_exchange(account, pool_or_id, sell_amount, sell_asset_id, receive_amount, receive_asset_id)
+      pool = if pool_or_id.is_a?(String)
+               cache.query_one_object(pool_or_id).not_nil!
+             else
+               pool_or_id.as(JSON::Any)
+             end
+
+      asset_sell = cache.query_asset(sell_asset_id).not_nil!
+      asset_receive = cache.query_asset(receive_asset_id).not_nil!
+
+      opdata = {
+        :fee            => default_fee,
+        :account        => to_account_id(account),
+        :pool           => to_oid(pool_or_id),
+        :amount_to_sell => {:amount => (sell_amount.to_f64 * (10 ** asset_sell["precision"].as_i)).to_i64, :asset_id => asset_sell["id"].as_s},
+        :min_to_receive => {:amount => (receive_amount.to_f64 * (10 ** asset_receive["precision"].as_i)).to_i64, :asset_id => asset_receive["id"].as_s},
+      }
+
+      return opdata
+    end
+
+    def do_liquidity_pool_exchange(account, pool_or_id, sell_amount, sell_asset_id, receive_amount, receive_asset_id)
+      build { |tx| tx.add_operation :liquidity_pool_exchange, make_liquidity_pool_exchange(account, pool_or_id, sell_amount, sell_asset_id, receive_amount, receive_asset_id) }
+    end
+
     def make_samet_fund_create(account, asset_id_or_symbol, balance, fee_rate)
       asset_data = cache.query_asset(asset_id_or_symbol).not_nil!
       opdata = {
@@ -333,15 +530,10 @@ module BitShares
     end
 
     def make_samet_fund_delete(account, fund : JSON::Any | String)
-      fund_id = if fund.is_a?(String)
-                  fund
-                else
-                  fund["id"].as_s
-                end
       opdata = {
         :fee           => default_fee,
         :owner_account => to_account_id(account),
-        :fund_id       => fund_id,
+        :fund_id       => to_oid(fund),
       }
       return opdata
     end
@@ -364,16 +556,11 @@ module BitShares
 
     def make_samet_fund_borrow(borrower, fund : JSON::Any | String, borrow_asset_id_or_symbol, borrow_amount)
       asset_data = cache.query_asset(borrow_asset_id_or_symbol).not_nil!
-      fund_id = if fund.is_a?(String)
-                  fund
-                else
-                  fund["id"].as_s
-                end
 
       opdata = {
         :fee           => default_fee,
         :borrower      => to_account_id(borrower),
-        :fund_id       => fund_id,
+        :fund_id       => to_oid(fund),
         :borrow_amount => {:amount => (borrow_amount.to_f64 * (10 ** asset_data["precision"].as_i)).to_i64, :asset_id => asset_data["id"].as_s},
       }
       return opdata
@@ -388,16 +575,10 @@ module BitShares
       precision = asset_data["precision"].as_i
       asset_id = asset_data["id"].as_s
 
-      fund_id = if fund.is_a?(String)
-                  fund
-                else
-                  fund["id"].as_s
-                end
-
       opdata = {
         :fee          => default_fee,
         :account      => to_account_id(borrower),
-        :fund_id      => fund_id,
+        :fund_id      => to_oid(fund),
         :repay_amount => {:amount => (repay_amount.to_f64 * (10 ** precision)).to_i64, :asset_id => asset_id},
         :fund_fee     => {:amount => (fee_amount.to_f64 * (10 ** precision)).to_i64, :asset_id => asset_id},
       }
@@ -406,6 +587,15 @@ module BitShares
 
     def do_samet_fund_repay(borrower, fund : JSON::Any | String, asset_id_or_symbol, repay_amount, fee_amount)
       build { |tx| tx.add_operation :samet_fund_repay, make_samet_fund_repay(borrower, fund, asset_id_or_symbol, repay_amount, fee_amount) }
+    end
+
+    private def to_oid(obj_or_oid : JSON::Any | String) : String
+      oid = if obj_or_oid.is_a?(String)
+              obj_or_oid
+            else
+              obj_or_oid["id"].as_s
+            end
+      return oid
     end
 
     private def to_account_id(account : JSON::Any | String) : String
