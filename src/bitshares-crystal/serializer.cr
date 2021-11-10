@@ -195,8 +195,10 @@ module BitShares
           else
             raise "Invalid JSON::Any value `#{v}`"
           end
-        else
+        when PrimitiveType
           return new(value)
+        else
+          raise "Unsupported type: #{typeof(value)} value: #{value}"
         end
       end
     end
