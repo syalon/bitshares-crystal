@@ -170,9 +170,9 @@ module BitShares
 
       def self.new(value) : self
         case value
-        when Hash
+        when Hash, NamedTuple
           return new(Hash(String, self).new.tap { |result| value.each { |k, v| result[k.to_s] = new(v) unless v.nil? } })
-        when Array
+        when Array, Tuple
           return new(Array(self).new.tap { |result| value.each { |v| result << new(v) unless v.nil? } })
         when Raw
           return value
