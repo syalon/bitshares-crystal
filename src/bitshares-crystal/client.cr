@@ -126,7 +126,7 @@ module BitShares
 
       tx = Transaction.new(self)
       if opname && opdata
-        # TODO:
+        # TODO: opdata[:fee] ||= default_fee
         tx.add_operation opname, opdata
       end
       yield tx
@@ -236,29 +236,32 @@ module BitShares
     # *asset_amount* 转账数量
     # *asset_id* 转账资产名称或ID。
     # *memo* 转账备注
-    def do_transfer(from, to, asset_amount, asset_id, memo = nil)
+    def make_transfer(from, to, asset_amount, asset_id, memo = nil)
       from_data = cache.query_account(from).not_nil!
-      to_data = cache.query_account(to).not_nil!
+      to_data = to_account_data(to)
       asset_data = cache.query_asset(asset_id).not_nil!
 
-      build { |tx|
-        tx.add_operation :transfer,
-          {
-            :fee    => default_fee,
-            :from   => from_data["id"].as_s,
-            :to     => to_data["id"].as_s,
-            :amount => {:amount => (asset_amount.to_f64 * (10 ** asset_data["precision"].as_i)).to_i64, :asset_id => asset_id},
-            :memo   => if memo
-              memo_private_key = wallet.get_private_key?(from_data.dig("options", "memo_key").as_s).not_nil!
-              to_pubkey = Secp256k1Zkp::PublicKey.from_wif(to_data.dig("options", "memo_key").as_s, @graphene_address_prefix)
-              BitShares::Crypto.gen_memo_object(memo, memo_private_key, to_pubkey, @graphene_address_prefix)
-            end,
-          }
+      opdata = {
+        :fee    => default_fee,
+        :from   => from_data["id"].as_s,
+        :to     => to_data["id"].as_s,
+        :amount => {:amount => (asset_amount.to_f64 * (10 ** asset_data["precision"].as_i)).to_i64, :asset_id => asset_id},
+        :memo   => if memo
+          memo_private_key = wallet.get_private_key?(from_data.dig("options", "memo_key").as_s).not_nil!
+          to_pubkey = Secp256k1Zkp::PublicKey.from_wif(to_data.dig("options", "memo_key").as_s, @graphene_address_prefix)
+          BitShares::Crypto.gen_memo_object(memo, memo_private_key, to_pubkey, @graphene_address_prefix)
+        end,
       }
+
+      return opdata
+    end
+
+    def do_transfer(from, to, asset_amount, asset_id, memo = nil)
+      build { |tx| tx.add_operation :transfer, make_transfer(from, to, asset_amount, asset_id, memo) }
     end
 
     # OP - 创建账号
-    def do_account_create(registrar, referrer, referrer_percent, voting_account, name, owner_public_key, active_public_key, memo_public_key = nil)
+    def make_account_create(registrar, referrer, referrer_percent, voting_account, name, owner_public_key, active_public_key, memo_public_key = nil)
       op_data = {
         :fee              => default_fee,
         :registrar        => registrar,
@@ -286,7 +289,11 @@ module BitShares
         },
       }
 
-      build { |tx| tx.add_operation Blockchain::Operations::Account_create, op_data }
+      return op_data
+    end
+
+    def do_account_create(registrar, referrer, referrer_percent, voting_account, name, owner_public_key, active_public_key, memo_public_key = nil)
+      build { |tx| tx.add_operation :account_create, make_account_create(registrar, referrer, referrer_percent, voting_account, name, owner_public_key, active_public_key, memo_public_key) }
     end
 
     # OP - 升级终生会员
@@ -396,6 +403,41 @@ module BitShares
         :key_values => key_values,
       }
       return do_account_storage_map_core(account, op_account_storage_map)
+    end
+
+    # OP - 断言
+    def make_assert_account(fee_account, account_id, account_name)
+      opdata = {
+        :fee                => default_fee,
+        :fee_paying_account => to_account_id(fee_account),
+        :predicates         => [[0, {account_id: account_id, name: account_name}]],
+        :required_auths     => [] of String,
+      }
+      return opdata
+    end
+
+    def make_assert_asset(fee_account, asset_id, asset_symbol)
+      opdata = {
+        :fee                => default_fee,
+        :fee_paying_account => to_account_id(fee_account),
+        :predicates         => [[1, {asset_id: asset_id, symbol: asset_symbol}]],
+        :required_auths     => [] of String,
+      }
+      return opdata
+    end
+
+    def make_assert_block(fee_account, block_id)
+      opdata = {
+        :fee                => default_fee,
+        :fee_paying_account => to_account_id(fee_account),
+        :predicates         => [[2, {id: block_id}]],
+        :required_auths     => [] of String,
+      }
+      return opdata
+    end
+
+    def do_assert(op_data)
+      build { |tx| tx.add_operation :assert, op_data }
     end
 
     # OP - 创建流动性池
@@ -605,6 +647,11 @@ module BitShares
               account["id"].as_s
             end
       return oid
+    end
+
+    private def to_account_data(account : JSON::Any | String) : JSON::Any
+      return cache.query_account(account).not_nil! if account.is_a?(String)
+      return account
     end
 
     private def default_fee
