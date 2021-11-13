@@ -17,13 +17,7 @@ module BitShares
     end
 
     # 添加 operation 到当前交易对象。
-    def add_operation(opcode_or_opname : Blockchain::Operations | String | Symbol, opdata)
-      if opcode_or_opname.is_a?(Blockchain::Operations)
-        opcode = opcode_or_opname
-      else
-        opcode = Blockchain::Operations.parse?(opcode_or_opname.to_s)
-        raise "unsupported opname: #{opcode_or_opname}" if opcode.nil?
-      end
+    def add_operation(opcode : Blockchain::Operations, opdata)
       @operations << [opcode.value, Serialize::Raw.new(opdata)]
     end
 
