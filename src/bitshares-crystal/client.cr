@@ -38,7 +38,7 @@ module BitShares
         latest_block_num = block_num_from_id(data[0].as_s) if data.is_a?(JSON::Any)
         return false
       }
-      client.call_db("set_block_applied_callback", [set_block_applied_callback])
+      call_db("set_block_applied_callback", [set_block_applied_callback])
 
       # 循环监控新的区块
       while true
