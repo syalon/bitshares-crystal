@@ -21,6 +21,36 @@ module BitShares
       super(config_object || BitShares::Config.new)
     end
 
+    private def block_num_from_id(block_id : Bytes | String)
+      bytes = if block_id.is_a?(String)
+                block_id.hexbytes
+              else
+                block_id
+              end
+
+      return bytes[0, 4].reverse!.to_unsafe.as(UInt32*).value # => big-endian
+    end
+
+    def loop_new_block(sleep_interval = 0.2)
+      # 注册新区块通知
+      latest_block_num : UInt32? = nil
+      set_block_applied_callback = ->(success : Bool, data : JSON::Any | String) {
+        latest_block_num = block_num_from_id(data[0].as_s) if data.is_a?(JSON::Any)
+        return false
+      }
+      client.call_db("set_block_applied_callback", [set_block_applied_callback])
+
+      # 循环监控新的区块
+      while true
+        if curr_block_number = latest_block_num
+          latest_block_num = nil
+          yield(curr_block_number)
+        else
+          sleep(sleep_interval)
+        end
+      end
+    end
+
     # API - 根据对象ID或者ID数组查询对象。
     def query_objects(object_id_or_id_array : String | Array(String)) : Hash(String, JSON::Any)
       object_id_array = if object_id_or_id_array.is_a?(String)
