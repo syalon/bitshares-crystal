@@ -152,12 +152,12 @@ module BitShares
       end
 
       def to_i64 : Int64
-        return as_s.to_i64 if @raw.is_a?(String)
+        return as_s.to_i64 if @value.is_a?(String)
         return as_i.to_i64
       end
 
       def to_u64 : UInt64
-        return as_s.to_u64 if @raw.is_a?(String)
+        return as_s.to_u64 if @value.is_a?(String)
         return as_i.to_u64
       end
 
