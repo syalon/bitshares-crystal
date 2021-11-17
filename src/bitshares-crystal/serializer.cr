@@ -151,6 +151,16 @@ module BitShares
         v.to_json(json)
       end
 
+      def to_i64 : Int64
+        return as_s.to_i64 if @raw.is_a?(String)
+        return as_i.to_i64
+      end
+
+      def to_u64 : UInt64
+        return as_s.to_u64 if @raw.is_a?(String)
+        return as_i.to_u64
+      end
+
       def inspect(io : IO) : Nil
         @value.inspect(io)
       end
@@ -363,7 +373,7 @@ module BitShares
 
     class T_uint64 < T_Base
       def self.to_byte_buffer(io, args : Arguments, opdata : Raw)
-        io.write_bytes(opdata.as_i.to_u64)
+        io.write_bytes(opdata.to_u64)
       end
 
       def self.from_byte_buffer(io)
@@ -373,7 +383,7 @@ module BitShares
 
     class T_int64 < T_Base
       def self.to_byte_buffer(io, args : Arguments, opdata : Raw)
-        io.write_bytes(opdata.as_i.to_i64)
+        io.write_bytes(opdata.to_i64)
       end
 
       def self.from_byte_buffer(io)
@@ -475,6 +485,15 @@ module BitShares
     end
 
     class T_time_point_sec < T_uint32
+      def self.to_byte_buffer(io, args : Arguments, opdata : Raw)
+        case var = opdata.value
+        when String
+          io.write_bytes(BitShares::Utility.parse_time_string_i64(var).to_u32)
+        else
+          super(io, args, opdata)
+        end
+      end
+
       def self.to_object(args : Arguments, opdata : Raw) : Raw?
         # => 格式：2018-06-04T13:03:57
         return Raw.new(Time.unix(opdata.as_i.to_i64).to_utc.to_s("%Y-%m-%dT%H:%M:%S"))
