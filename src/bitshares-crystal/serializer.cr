@@ -683,7 +683,13 @@ module BitShares
 
     class Tm_bytes(Size) < T_Base
       def self.to_byte_buffer(io, args : Arguments, opdata : Raw)
-        opdata = opdata.as_bytes
+        opdata = case var = opdata.value
+                 when String
+                   var.hexbytes
+                 else
+                   opdata.as_bytes
+                 end
+
         if Size == Nil
           io.write_varint32(opdata.size)
         else
