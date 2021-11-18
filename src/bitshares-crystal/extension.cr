@@ -34,8 +34,40 @@ struct JSON::Any
     return as_i
   end
 
+  def to_u32 : Int64
+    return as_s.to_u32 if @raw.is_a?(String)
+    return as_i64.to_u32
+  end
+
   def to_i64 : Int64
     return as_s.to_i64 if @raw.is_a?(String)
-    return as_i.to_i64
+    return as_i64
+  end
+
+  def to_u64 : UInt64
+    return as_s.to_u64 if @raw.is_a?(String)
+    return as_i64.to_u64
+  end
+end
+
+struct YAML::Any
+  def to_i32 : Int32
+    return as_s.to_i32 if @raw.is_a?(String)
+    return as_i64.to_i32
+  end
+
+  def to_u32 : Int64
+    return as_s.to_u32 if @raw.is_a?(String)
+    return as_i64.to_u32
+  end
+
+  def to_i64 : Int64
+    return as_s.to_i64 if @raw.is_a?(String)
+    return as_i64
+  end
+
+  def to_u64 : UInt64
+    return as_s.to_u64 if @raw.is_a?(String)
+    return as_i64.to_u64
   end
 end
