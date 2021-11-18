@@ -391,6 +391,9 @@ module BitShares
       end
     end
 
+    class T_share_type < T_int64
+    end
+
     class T_varint32 < T_Base
       def self.to_byte_buffer(io, args : Arguments, opdata : Raw)
         io.write_varint32(opdata.as_i.to_u32)
@@ -816,7 +819,7 @@ module BitShares
     # 资产对象
     #
     class T_asset < T_composite
-      add_field :amount, T_int64
+      add_field :amount, T_share_type
       add_field :asset_id, Tm_protocol_id_type(ObjectType::Asset)
     end
 
@@ -825,14 +828,6 @@ module BitShares
       add_field :to, T_public_key
       add_field :nonce, T_uint64
       add_field :message, Tm_bytes(Nil)
-    end
-
-    class OP_balance_claim < T_composite
-      add_field :fee, T_asset
-      add_field :deposit_to_account, Tm_protocol_id_type(ObjectType::Account)
-      add_field :balance_to_claim, Tm_protocol_id_type(ObjectType::Balance)
-      add_field :balance_owner_key, T_public_key
-      add_field :total_claimed, T_asset
     end
 
     class OP_transfer < T_composite
@@ -871,15 +866,7 @@ module BitShares
       ]
     end
 
-    class OP_asset_publish_feed < T_composite
-      add_field :fee, T_asset
-      add_field :publisher, Tm_protocol_id_type(ObjectType::Account)
-      add_field :asset_id, Tm_protocol_id_type(ObjectType::Asset)
-      add_field :feed, T_price_feed
-      add_field :extensions, Tm_extension[
-        Field[:initial_collateral_ratio, T_uint16],
-      ]
-    end
+    # TODO:OP virtual Fill_order
 
     class T_authority < T_composite
       add_field :weight_threshold, T_uint32
@@ -918,6 +905,15 @@ module BitShares
       add_field :extensions, Tm_set(T_future_extensions)
     end
 
+    class OP_account_whitelist < T_composite
+      add_field :fee, T_asset
+      add_field :authorizing_account, Tm_protocol_id_type(ObjectType::Account)
+      add_field :account_to_list, Tm_protocol_id_type(ObjectType::Account)
+      add_field :new_listing, T_uint8
+
+      add_field :extensions, Tm_set(T_future_extensions)
+    end
+
     class OP_account_upgrade < T_composite
       add_field :fee, T_asset
       add_field :account_to_upgrade, Tm_protocol_id_type(ObjectType::Account)
@@ -930,101 +926,6 @@ module BitShares
       add_field :account_id, Tm_protocol_id_type(ObjectType::Account)
       add_field :new_owner, Tm_protocol_id_type(ObjectType::Account)
       add_field :extensions, Tm_set(T_future_extensions)
-    end
-
-    class T_linear_vesting_policy_initializer < T_composite
-      add_field :begin_timestamp, T_time_point_sec
-      add_field :vesting_cliff_seconds, T_uint32
-      add_field :vesting_duration_seconds, T_uint32
-    end
-
-    class T_cdd_vesting_policy_initializer < T_composite
-      add_field :start_claim, T_time_point_sec
-      add_field :vesting_seconds, T_uint32
-    end
-
-    class OP_vesting_balance_create < T_composite
-      add_field :fee, T_asset
-      add_field :creator, Tm_protocol_id_type(ObjectType::Account)
-      add_field :owner, Tm_protocol_id_type(ObjectType::Account)
-      add_field :amount, T_asset
-      add_field :policy, Tm_static_variant[
-        T_linear_vesting_policy_initializer,
-        T_cdd_vesting_policy_initializer,
-      ]
-    end
-
-    class OP_vesting_balance_withdraw < T_composite
-      add_field :fee, T_asset
-      add_field :vesting_balance, Tm_protocol_id_type(ObjectType::Vesting_balance)
-      add_field :owner, Tm_protocol_id_type(ObjectType::Account)
-      add_field :amount, T_asset
-    end
-
-    class OP_custom < T_composite
-      add_field :fee, T_asset
-      add_field :payer, Tm_protocol_id_type(ObjectType::Account)
-      add_field :required_auths, Tm_set(Tm_protocol_id_type(ObjectType::Account))
-      add_field :id, T_uint16
-      add_field :data, Tm_bytes(Nil)
-    end
-
-    class T_account_storage_map < T_composite
-      add_field :remove, T_bool
-      add_field :catalog, T_string
-      add_field :key_values, Tm_map(T_string, Tm_optional(T_string))
-    end
-
-    class T_custom_plugin_operation < T_composite
-      add_field :data, Tm_static_variant[T_account_storage_map]
-    end
-
-    class T_op_wrapper < T_composite
-      add_field :op, T_operation
-    end
-
-    class OP_proposal_create < T_composite
-      add_field :fee, T_asset
-      add_field :fee_paying_account, Tm_protocol_id_type(ObjectType::Account)
-      add_field :expiration_time, T_time_point_sec
-      add_field :proposed_ops, Tm_array[T_op_wrapper]
-      add_field :review_period_seconds, Tm_optional(T_uint32)
-      add_field :extensions, Tm_set(T_future_extensions)
-    end
-
-    class OP_proposal_update < T_composite
-      add_field :fee, T_asset
-      add_field :fee_paying_account, Tm_protocol_id_type(ObjectType::Account)
-      add_field :proposal, Tm_protocol_id_type(ObjectType::Proposal)
-
-      add_field :active_approvals_to_add, Tm_set(Tm_protocol_id_type(ObjectType::Account))
-      add_field :active_approvals_to_remove, Tm_set(Tm_protocol_id_type(ObjectType::Account))
-      add_field :owner_approvals_to_add, Tm_set(Tm_protocol_id_type(ObjectType::Account))
-      add_field :owner_approvals_to_remove, Tm_set(Tm_protocol_id_type(ObjectType::Account))
-      add_field :key_approvals_to_add, Tm_set(T_public_key)
-      add_field :key_approvals_to_remove, Tm_set(T_public_key)
-
-      add_field :extensions, Tm_set(T_future_extensions)
-    end
-
-    class OP_proposal_delete < T_composite
-      add_field :fee, T_asset
-      add_field :fee_paying_account, Tm_protocol_id_type(ObjectType::Account)
-      add_field :using_owner_authority, T_bool
-      add_field :proposal, Tm_protocol_id_type(ObjectType::Proposal)
-      add_field :extensions, Tm_set(T_future_extensions)
-    end
-
-    class T_price < T_composite
-      add_field :base, T_asset
-      add_field :quote, T_asset
-    end
-
-    class T_price_feed < T_composite
-      add_field :settlement_price, T_price
-      add_field :maintenance_collateral_ratio, T_uint16
-      add_field :maximum_short_squeeze_ratio, T_uint16
-      add_field :core_exchange_rate, T_price
     end
 
     class T_asset_options < T_composite
@@ -1066,6 +967,18 @@ module BitShares
       ]
     end
 
+    class T_price < T_composite
+      add_field :base, T_asset
+      add_field :quote, T_asset
+    end
+
+    class T_price_feed < T_composite
+      add_field :settlement_price, T_price
+      add_field :maintenance_collateral_ratio, T_uint16
+      add_field :maximum_short_squeeze_ratio, T_uint16
+      add_field :core_exchange_rate, T_price
+    end
+
     class OP_asset_create < T_composite
       add_field :fee, T_asset
       add_field :issuer, Tm_protocol_id_type(ObjectType::Account)
@@ -1074,21 +987,6 @@ module BitShares
       add_field :common_options, T_asset_options
       add_field :bitasset_opts, Tm_optional(T_bitasset_options)
       add_field :is_prediction_market, T_bool
-      add_field :extensions, Tm_set(T_future_extensions)
-    end
-
-    class OP_asset_global_settle < T_composite
-      add_field :fee, T_asset
-      add_field :issuer, Tm_protocol_id_type(ObjectType::Account)
-      add_field :asset_to_settle, Tm_protocol_id_type(ObjectType::Asset)
-      add_field :settle_price, T_price
-      add_field :extensions, Tm_set(T_future_extensions)
-    end
-
-    class OP_asset_settle < T_composite
-      add_field :fee, T_asset
-      add_field :account, Tm_protocol_id_type(ObjectType::Account)
-      add_field :amount, T_asset
       add_field :extensions, Tm_set(T_future_extensions)
     end
 
@@ -1117,19 +1015,19 @@ module BitShares
       add_field :extensions, Tm_set(T_future_extensions)
     end
 
-    class OP_asset_reserve < T_composite
-      add_field :fee, T_asset
-      add_field :payer, Tm_protocol_id_type(ObjectType::Account)
-      add_field :amount_to_reserve, T_asset
-      add_field :extensions, Tm_set(T_future_extensions)
-    end
-
     class OP_asset_issue < T_composite
       add_field :fee, T_asset
       add_field :issuer, Tm_protocol_id_type(ObjectType::Account)
       add_field :asset_to_issue, T_asset
       add_field :issue_to_account, Tm_protocol_id_type(ObjectType::Account)
       add_field :memo, Tm_optional(T_memo_data)
+      add_field :extensions, Tm_set(T_future_extensions)
+    end
+
+    class OP_asset_reserve < T_composite
+      add_field :fee, T_asset
+      add_field :payer, Tm_protocol_id_type(ObjectType::Account)
+      add_field :amount_to_reserve, T_asset
       add_field :extensions, Tm_set(T_future_extensions)
     end
 
@@ -1141,27 +1039,29 @@ module BitShares
       add_field :extensions, Tm_set(T_future_extensions)
     end
 
-    class OP_asset_claim_pool < T_composite
+    class OP_asset_settle < T_composite
+      add_field :fee, T_asset
+      add_field :account, Tm_protocol_id_type(ObjectType::Account)
+      add_field :amount, T_asset
+      add_field :extensions, Tm_set(T_future_extensions)
+    end
+
+    class OP_asset_global_settle < T_composite
       add_field :fee, T_asset
       add_field :issuer, Tm_protocol_id_type(ObjectType::Account)
+      add_field :asset_to_settle, Tm_protocol_id_type(ObjectType::Asset)
+      add_field :settle_price, T_price
+      add_field :extensions, Tm_set(T_future_extensions)
+    end
+
+    class OP_asset_publish_feed < T_composite
+      add_field :fee, T_asset
+      add_field :publisher, Tm_protocol_id_type(ObjectType::Account)
       add_field :asset_id, Tm_protocol_id_type(ObjectType::Asset)
-      add_field :amount_to_claim, T_asset
-      add_field :extensions, Tm_set(T_future_extensions)
-    end
-
-    class OP_asset_claim_fees < T_composite
-      add_field :fee, T_asset
-      add_field :issuer, Tm_protocol_id_type(ObjectType::Account)
-      add_field :amount_to_claim, T_asset # amount_to_claim.asset_id->issuer must == issuer
-      add_field :extensions, Tm_extension[Field[:claim_from_asset_id, Tm_protocol_id_type(ObjectType::Asset)]]
-    end
-
-    class OP_asset_update_issuer < T_composite
-      add_field :fee, T_asset
-      add_field :issuer, Tm_protocol_id_type(ObjectType::Account)
-      add_field :asset_to_update, Tm_protocol_id_type(ObjectType::Asset)
-      add_field :new_issuer, Tm_optional(Tm_protocol_id_type(ObjectType::Account))
-      add_field :extensions, Tm_set(T_future_extensions)
+      add_field :feed, T_price_feed
+      add_field :extensions, Tm_extension[
+        Field[:initial_collateral_ratio, T_uint16],
+      ]
     end
 
     class OP_witness_create < T_composite
@@ -1177,6 +1077,167 @@ module BitShares
       add_field :witness_account, Tm_protocol_id_type(ObjectType::Account)
       add_field :new_url, Tm_optional(T_string)
       add_field :new_signing_key, Tm_optional(T_public_key)
+    end
+
+    class T_op_wrapper < T_composite
+      add_field :op, T_operation
+    end
+
+    class OP_proposal_create < T_composite
+      add_field :fee, T_asset
+      add_field :fee_paying_account, Tm_protocol_id_type(ObjectType::Account)
+      add_field :expiration_time, T_time_point_sec
+      add_field :proposed_ops, Tm_array[T_op_wrapper]
+      add_field :review_period_seconds, Tm_optional(T_uint32)
+      add_field :extensions, Tm_set(T_future_extensions)
+    end
+
+    class OP_proposal_update < T_composite
+      add_field :fee, T_asset
+      add_field :fee_paying_account, Tm_protocol_id_type(ObjectType::Account)
+      add_field :proposal, Tm_protocol_id_type(ObjectType::Proposal)
+
+      add_field :active_approvals_to_add, Tm_set(Tm_protocol_id_type(ObjectType::Account))
+      add_field :active_approvals_to_remove, Tm_set(Tm_protocol_id_type(ObjectType::Account))
+      add_field :owner_approvals_to_add, Tm_set(Tm_protocol_id_type(ObjectType::Account))
+      add_field :owner_approvals_to_remove, Tm_set(Tm_protocol_id_type(ObjectType::Account))
+      add_field :key_approvals_to_add, Tm_set(T_public_key)
+      add_field :key_approvals_to_remove, Tm_set(T_public_key)
+
+      add_field :extensions, Tm_set(T_future_extensions)
+    end
+
+    class OP_proposal_delete < T_composite
+      add_field :fee, T_asset
+      add_field :fee_paying_account, Tm_protocol_id_type(ObjectType::Account)
+      add_field :using_owner_authority, T_bool
+      add_field :proposal, Tm_protocol_id_type(ObjectType::Proposal)
+      add_field :extensions, Tm_set(T_future_extensions)
+    end
+
+    class OP_withdraw_permission_create < T_composite
+      add_field :fee, T_asset
+      add_field :withdraw_from_account, Tm_protocol_id_type(ObjectType::Account)
+      add_field :authorized_account, Tm_protocol_id_type(ObjectType::Account)
+      add_field :withdrawal_limit, T_asset
+      add_field :withdrawal_period_sec, T_uint32
+      add_field :periods_until_expiration, T_uint32
+      add_field :period_start_time, T_time_point_sec
+    end
+
+    class OP_withdraw_permission_update < T_composite
+      add_field :fee, T_asset
+      add_field :withdraw_from_account, Tm_protocol_id_type(ObjectType::Account)
+      add_field :authorized_account, Tm_protocol_id_type(ObjectType::Account)
+      add_field :permission_to_update, Tm_protocol_id_type(ObjectType::Withdraw_permission)
+      add_field :withdrawal_limit, T_asset
+      add_field :withdrawal_period_sec, T_uint32
+      add_field :period_start_time, T_time_point_sec
+      add_field :periods_until_expiration, T_uint32
+    end
+
+    class OP_withdraw_permission_claim < T_composite
+      add_field :fee, T_asset
+      add_field :withdraw_permission, Tm_protocol_id_type(ObjectType::Withdraw_permission)
+      add_field :withdraw_from_account, Tm_protocol_id_type(ObjectType::Account)
+      add_field :withdraw_to_account, Tm_protocol_id_type(ObjectType::Account)
+      add_field :amount_to_withdraw, T_asset
+      add_field :memo, Tm_optional(T_memo_data)
+    end
+
+    class OP_withdraw_permission_delete < T_composite
+      add_field :fee, T_asset
+      add_field :withdraw_from_account, Tm_protocol_id_type(ObjectType::Account)
+      add_field :authorized_account, Tm_protocol_id_type(ObjectType::Account)
+      add_field :withdrawal_permission, Tm_protocol_id_type(ObjectType::Withdraw_permission)
+    end
+
+    class OP_committee_member_create < T_composite
+      add_field :fee, T_asset
+      add_field :committee_member_account, Tm_protocol_id_type(ObjectType::Account)
+      add_field :url, T_string
+    end
+
+    class OP_committee_member_update < T_composite
+      add_field :fee, T_asset
+      add_field :committee_member, Tm_protocol_id_type(ObjectType::Committee_member)
+      add_field :committee_member_account, Tm_protocol_id_type(ObjectType::Account)
+      add_field :new_url, Tm_optional(T_string)
+    end
+
+    # TODO:OP Committee_member_update_global_parameters = 31
+
+    class T_linear_vesting_policy_initializer < T_composite
+      add_field :begin_timestamp, T_time_point_sec
+      add_field :vesting_cliff_seconds, T_uint32
+      add_field :vesting_duration_seconds, T_uint32
+    end
+
+    class T_cdd_vesting_policy_initializer < T_composite
+      add_field :start_claim, T_time_point_sec
+      add_field :vesting_seconds, T_uint32
+    end
+
+    class OP_vesting_balance_create < T_composite
+      add_field :fee, T_asset
+      add_field :creator, Tm_protocol_id_type(ObjectType::Account)
+      add_field :owner, Tm_protocol_id_type(ObjectType::Account)
+      add_field :amount, T_asset
+      add_field :policy, Tm_static_variant[
+        T_linear_vesting_policy_initializer,
+        T_cdd_vesting_policy_initializer,
+      ]
+    end
+
+    class OP_vesting_balance_withdraw < T_composite
+      add_field :fee, T_asset
+      add_field :vesting_balance, Tm_protocol_id_type(ObjectType::Vesting_balance)
+      add_field :owner, Tm_protocol_id_type(ObjectType::Account)
+      add_field :amount, T_asset
+    end
+
+    class T_vesting_balance_worker_initializer < T_composite
+      add_field :pay_vesting_period_days, T_uint16
+    end
+
+    class T_burn_worker_initializer < T_composite
+    end
+
+    class T_refund_worker_initializer < T_composite
+    end
+
+    class OP_worker_create < T_composite
+      add_field :fee, T_asset
+      add_field :owner, Tm_protocol_id_type(ObjectType::Account)
+      add_field :work_begin_date, T_time_point_sec
+      add_field :work_end_date, T_time_point_sec
+      add_field :daily_pay, T_share_type
+      add_field :name, T_string
+      add_field :url, T_string
+
+      add_field :initializer, Tm_static_variant[
+        T_refund_worker_initializer,
+        T_vesting_balance_worker_initializer,
+        T_burn_worker_initializer,
+      ]
+    end
+
+    class OP_custom < T_composite
+      add_field :fee, T_asset
+      add_field :payer, Tm_protocol_id_type(ObjectType::Account)
+      add_field :required_auths, Tm_set(Tm_protocol_id_type(ObjectType::Account))
+      add_field :id, T_uint16
+      add_field :data, Tm_bytes(Nil)
+    end
+
+    class T_account_storage_map < T_composite
+      add_field :remove, T_bool
+      add_field :catalog, T_string
+      add_field :key_values, Tm_map(T_string, Tm_optional(T_string))
+    end
+
+    class T_custom_plugin_operation < T_composite
+      add_field :data, Tm_static_variant[T_account_storage_map]
     end
 
     class T_assert_predicate_account_name_eq_lit < T_composite
@@ -1202,6 +1263,24 @@ module BitShares
         T_assert_predicate_block_id,
       ]]
       add_field :required_auths, Tm_set(Tm_protocol_id_type(ObjectType::Account))
+      add_field :extensions, Tm_set(T_future_extensions)
+    end
+
+    class OP_balance_claim < T_composite
+      add_field :fee, T_asset
+      add_field :deposit_to_account, Tm_protocol_id_type(ObjectType::Account)
+      add_field :balance_to_claim, Tm_protocol_id_type(ObjectType::Balance)
+      add_field :balance_owner_key, T_public_key
+      add_field :total_claimed, T_asset
+    end
+
+    class OP_override_transfer < T_composite
+      add_field :fee, T_asset
+      add_field :issuer, Tm_protocol_id_type(ObjectType::Account)
+      add_field :from, Tm_protocol_id_type(ObjectType::Account)
+      add_field :to, Tm_protocol_id_type(ObjectType::Account)
+      add_field :amount, T_asset
+      add_field :memo, Tm_optional(T_memo_data)
       add_field :extensions, Tm_set(T_future_extensions)
     end
 
@@ -1239,6 +1318,12 @@ module BitShares
       add_field :outputs, Tm_array[T_blind_output]
     end
 
+    class OP_blind_transfer < T_composite
+      add_field :fee, T_asset
+      add_field :inputs, Tm_array[T_blind_input]
+      add_field :outputs, Tm_array[T_blind_output]
+    end
+
     class OP_transfer_from_blind < T_composite
       add_field :fee, T_asset
       add_field :amount, T_asset
@@ -1247,10 +1332,41 @@ module BitShares
       add_field :inputs, Tm_array[T_blind_input]
     end
 
-    class OP_blind_transfer < T_composite
+    # TODO:OP virtual Asset_settle_cancel
+
+    class OP_asset_claim_fees < T_composite
       add_field :fee, T_asset
-      add_field :inputs, Tm_array[T_blind_input]
-      add_field :outputs, Tm_array[T_blind_output]
+      add_field :issuer, Tm_protocol_id_type(ObjectType::Account)
+      add_field :amount_to_claim, T_asset # amount_to_claim.asset_id->issuer must == issuer
+      add_field :extensions, Tm_extension[Field[:claim_from_asset_id, Tm_protocol_id_type(ObjectType::Asset)]]
+    end
+
+    # TODO:OP virtual Fba_distribute
+
+    class OP_bid_collateral < T_composite
+      add_field :fee, T_asset
+      add_field :bidder, Tm_protocol_id_type(ObjectType::Account)
+      add_field :additional_collateral, T_asset
+      add_field :debt_covered, T_asset
+      add_field :extensions, Tm_set(T_future_extensions)
+    end
+
+    # TODO:OP virtual Execute_bid
+
+    class OP_asset_claim_pool < T_composite
+      add_field :fee, T_asset
+      add_field :issuer, Tm_protocol_id_type(ObjectType::Account)
+      add_field :asset_id, Tm_protocol_id_type(ObjectType::Asset)
+      add_field :amount_to_claim, T_asset
+      add_field :extensions, Tm_set(T_future_extensions)
+    end
+
+    class OP_asset_update_issuer < T_composite
+      add_field :fee, T_asset
+      add_field :issuer, Tm_protocol_id_type(ObjectType::Account)
+      add_field :asset_to_update, Tm_protocol_id_type(ObjectType::Asset)
+      add_field :new_issuer, Tm_optional(Tm_protocol_id_type(ObjectType::Account))
+      add_field :extensions, Tm_set(T_future_extensions)
     end
 
     class OP_htlc_create < T_composite
@@ -1276,6 +1392,8 @@ module BitShares
       add_field :extensions, Tm_set(T_future_extensions)
     end
 
+    # TODO:OP virtual Htlc_redeemed
+
     class OP_htlc_extend < T_composite
       add_field :fee, T_asset
       add_field :htlc_id, Tm_protocol_id_type(ObjectType::Htlc)
@@ -1283,6 +1401,13 @@ module BitShares
       add_field :seconds_to_add, T_uint32
       add_field :extensions, Tm_set(T_future_extensions)
     end
+
+    # TODO:OP virtual Htlc_refund
+
+    # TODO:OP 3
+    # Custom_authority_create                   = 54
+    # Custom_authority_update                   = 55
+    # Custom_authority_delete                   = 56
 
     class OP_ticket_create < T_composite
       add_field :fee, T_asset
@@ -1463,6 +1588,8 @@ module BitShares
 
       add_field :extensions, Tm_set(T_future_extensions)
     end
+
+    # TODO:OP virtual Credit_deal_expired
 
     class T_transaction < T_composite
       add_field :ref_block_num, T_uint16
