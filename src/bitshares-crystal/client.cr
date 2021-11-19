@@ -1,3 +1,5 @@
+require "big"
+
 require "./connection"
 
 module BitShares
@@ -373,21 +375,21 @@ module BitShares
 
           # => REMARK：小数精度
           decimal_precision = 8
+          decimal_scale = 10_u64 ** decimal_precision
 
-          base_amount = (settlement_price * 10**decimal_precision).round
-          quote_amount = (10**(decimal_precision - asset["precision"].as_i + short_backing_asset["precision"].as_i)).ceil
-          rat_price = nil # Rational(base_amount, quote_amount) # TODO:ing
+          base_amount = (settlement_price * decimal_scale).round.to_big_i
+          quote_amount = 10_u64 ** (decimal_precision - asset["precision"].as_i + short_backing_asset["precision"].as_i)
+          rat_price = BigRational.new(base_amount, quote_amount)
 
-          base_amount = (core_exchange_rate * 10**decimal_precision).round
-          quote_amount = (10**(decimal_precision - asset["precision"].as_i + core_asset["precision"].as_i)).ceil
-          rat_cer = nil # Rational(base_amount, quote_amount)# TODO:ing
+          base_amount = (core_exchange_rate * decimal_scale).round.to_big_i
+          quote_amount = 10_u64 ** (decimal_precision - asset["precision"].as_i + core_asset["precision"].as_i)
+          rat_cer = BigRational.new(base_amount, quote_amount)
 
           # => 防止溢出
-          max_value = 2**63
-          raise "Invalid amount value" if rat_price.denominator >= max_value
-          raise "Invalid amount value" if rat_price.numerator >= max_value
-          raise "Invalid amount value" if rat_cer.denominator >= max_value
-          raise "Invalid amount value" if rat_cer.numerator >= max_value
+          raise "Invalid amount value" if rat_price.denominator > Int64::MAX
+          raise "Invalid amount value" if rat_price.numerator > Int64::MAX
+          raise "Invalid amount value" if rat_cer.denominator > Int64::MAX
+          raise "Invalid amount value" if rat_cer.numerator > Int64::MAX
 
           op = {
             :fee       => default_fee,
@@ -395,14 +397,14 @@ module BitShares
             :asset_id  => asset["id"].as_s,
             :feed      => {
               :settlement_price => {
-                :base  => {:asset_id => asset["id"].as_s, :amount => rat_price.numerator},
-                :quote => {:asset_id => short_backing_asset["id"].as_s, :amount => rat_price.denominator},
+                :base  => {:asset_id => asset["id"].as_s, :amount => rat_price.numerator.to_i64},
+                :quote => {:asset_id => short_backing_asset["id"].as_s, :amount => rat_price.denominator.to_i64},
               },
               :maintenance_collateral_ratio => feed_info[:maintenance_collateral_ratio],
               :maximum_short_squeeze_ratio  => feed_info[:maximum_short_squeeze_ratio],
               :core_exchange_rate           => {
-                :base  => {:asset_id => asset["id"].as_s, :amount => rat_cer.numerator},
-                :quote => {:asset_id => core_asset["id"].as_s, :amount => rat_cer.denominator}, # => REMARK:CER的quote必须是CORE核心资产。
+                :base  => {:asset_id => asset["id"].as_s, :amount => rat_cer.numerator.to_i64},
+                :quote => {:asset_id => core_asset["id"].as_s, :amount => rat_cer.denominator.to_i64}, # => REMARK:CER的quote必须是CORE核心资产。
               },
             },
             # => TODO:not supported
