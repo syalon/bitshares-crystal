@@ -35,7 +35,18 @@ module BitShares
         decode(Slice.new(bytes.to_unsafe, bytes.size))
       end
 
-      # TODO: docode from IO::Memory?
+      def self.decode(io : IO::Memory) : UInt64
+        int_val = 0_u64
+        shift = 0
+
+        while byte = io.read_byte
+          int_val |= (byte & 0x7F).to_u64 << shift
+          shift += 7
+          break if byte & 0x80 == 0
+        end
+
+        return int_val
+      end
 
       def self.decode(bytes : Bytes)
         int_val = 0_u64
@@ -67,6 +78,19 @@ module BitShares
         else
           raise "Invalid object id: #{value}"
         end
+      end
+
+      def read_varint32
+        return Varint.decode(self)
+      end
+
+      def read_n_bytes(size : UInt32)
+        return Bytes.new(size).tap { |slice| read(slice) }
+      end
+
+      def read_string(size : UInt32)
+        return "" if size == 0
+        return String.new(read_n_bytes(size))
       end
 
       # def w_object_id(io, args, value, object_type_symbol)
@@ -255,17 +279,20 @@ module BitShares
       #
       # (public) 反序列化，解析二进制流为 opdata 对象。
       #
-      def self.parse(data)
-        # => TODO:
-        # return decode_to_opdata_with_type(this, BinSerializer().initForReader(data))!!
+      def self.parse(data : Bytes, graphene_address_prefix = "") : Raw?
+        if result = from_byte_buffer(BinaryIO.new(data), Arguments.new(graphene_address_prefix))
+          Raw.new(result)
+        else
+          nil
+        end
       end
 
       def self.to_byte_buffer(io, args : Arguments, opdata : Raw?)
         raise "unsupported value '#{opdata}' (#{opdata.class}) for '#{self.name}'." # only for compiler
       end
 
-      def self.from_byte_buffer(io)
-        # => TODO:
+      def self.from_byte_buffer(io, args : Arguments)
+        return nil
       end
 
       def self.to_object(args : Arguments, opdata : Raw?) : Raw?
@@ -308,8 +335,18 @@ module BitShares
         @@_fields.each { |field| field.type.to_byte_buffer(io, args, h[field.name]? || h[field.symbol]?) }
       end
 
-      def self.from_byte_buffer(io)
-        # => TODO:
+      def self.from_byte_buffer(io, args : Arguments)
+        if @@_fields.empty?
+          nil
+        else
+          result = Raw::HashType.new
+          @@_fields.each do |field|
+            if value = field.type.from_byte_buffer(io, args)
+              result[field.name] = Raw.new(value)
+            end
+          end
+          return result
+        end
       end
 
       def self.to_object(args : Arguments, opdata : Raw) : Raw?
@@ -346,8 +383,8 @@ module BitShares
         io.write_byte(opdata.as_i.to_u8)
       end
 
-      def self.from_byte_buffer(io)
-        # => TODO: return io.read_u8()
+      def self.from_byte_buffer(io, args : Arguments)
+        return io.read_byte.not_nil!
       end
     end
 
@@ -356,8 +393,8 @@ module BitShares
         io.write_bytes(opdata.as_i.to_u16)
       end
 
-      def self.from_byte_buffer(io)
-        # => TODO:
+      def self.from_byte_buffer(io, args : Arguments)
+        io.read_bytes(UInt16)
       end
     end
 
@@ -366,8 +403,8 @@ module BitShares
         io.write_bytes(opdata.as_i.to_u32)
       end
 
-      def self.from_byte_buffer(io)
-        # => TODO:
+      def self.from_byte_buffer(io, args : Arguments)
+        io.read_bytes(UInt32)
       end
     end
 
@@ -376,8 +413,8 @@ module BitShares
         io.write_bytes(opdata.to_u64)
       end
 
-      def self.from_byte_buffer(io)
-        # => TODO:
+      def self.from_byte_buffer(io, args : Arguments)
+        io.read_bytes(UInt64)
       end
     end
 
@@ -386,8 +423,8 @@ module BitShares
         io.write_bytes(opdata.to_i64)
       end
 
-      def self.from_byte_buffer(io)
-        # => TODO:
+      def self.from_byte_buffer(io, args : Arguments)
+        io.read_bytes(Int64)
       end
     end
 
@@ -399,8 +436,8 @@ module BitShares
         io.write_varint32(opdata.as_i.to_u32)
       end
 
-      def self.from_byte_buffer(io)
-        # => TODO:
+      def self.from_byte_buffer(io, args : Arguments)
+        io.read_varint32
       end
     end
 
@@ -412,8 +449,8 @@ module BitShares
         io.write(opdata.to_slice)
       end
 
-      def self.from_byte_buffer(io)
-        # => TODO:
+      def self.from_byte_buffer(io, args : Arguments)
+        io.read_string(io.read_varint32)
       end
     end
 
@@ -422,8 +459,8 @@ module BitShares
         io.write_byte(opdata.as_b ? 1_u8 : 0_u8)
       end
 
-      def self.from_byte_buffer(io)
-        # => TODO:
+      def self.from_byte_buffer(io, args : Arguments)
+        return io.read_byte.not_nil! != 0
       end
     end
 
@@ -453,7 +490,11 @@ module BitShares
       end
 
       def self.from_byte_buffer(io, args : Arguments)
-        raise "TODO"
+        value = io.read_bytes(UInt32)
+
+        id = (value & 0xffffff00) >> 8
+        type = value & 0xff
+        return "#{type}:#{id}"
       end
 
       def self.sort_by(args : Arguments, a : Raw, b : Raw)
@@ -469,7 +510,9 @@ module BitShares
       end
 
       def self.from_byte_buffer(io, args : Arguments)
-        raise "TODO" # return Secp256k1Zkp::PublicKey.new(io.read(33)).to_wif(args.graphene_address_prefix)
+        slice = io.read_n_bytes(33)
+        key_data = Secp256k1Zkp::RawdataCompressedPublicKey.new { |i| slice[i] }
+        return Secp256k1Zkp::PublicKey.new(key_data).to_wif(args.graphene_address_prefix)
       end
 
       def self.sort_by(args : Arguments, a : Raw, b : Raw)
@@ -518,7 +561,7 @@ module BitShares
       end
 
       abstract def to_byte_buffer(io, args : Arguments, opdata : Raw?)
-      abstract def from_byte_buffer(io)
+      abstract def from_byte_buffer(io, args : Arguments)
       abstract def to_object(args : Arguments, opdata : Raw?) : Raw?
     end
 
@@ -527,8 +570,8 @@ module BitShares
         io.write_object_id(opdata.as_s, ReqObjectType)
       end
 
-      def self.from_byte_buffer(io)
-        # TODO:
+      def self.from_byte_buffer(io, args : Arguments)
+        "1.#{ReqObjectType.value}.#{io.read_varint32}"
       end
 
       def self.to_object(args : Arguments, opdata : Raw?) : Raw?
@@ -573,8 +616,21 @@ module BitShares
         end
       end
 
-      def from_byte_buffer(io)
-        # TODO:
+      def from_byte_buffer(io, args : Arguments)
+        len = io.read_varint32
+        raise "Too many fields" if len > @fields_defs.size
+        return nil if len == 0
+
+        result = Raw::HashType.new
+        len.times do |i|
+          idx = io.read_varint32
+          raise "Index out of range" if idx >= @fields_defs.size
+          field = @fields_defs[idx]
+          if value = field.type.from_byte_buffer(io, args)
+            result[field.name] = Raw.new(value)
+          end
+        end
+        return result
       end
 
       def to_object(args : Arguments, opdata : Raw?) : Raw?
@@ -602,17 +658,18 @@ module BitShares
         opdata.each { |sub_opdata| @optype.to_byte_buffer(io, args, sub_opdata) }
       end
 
-      def from_byte_buffer(io)
-        # TODO:
-        #         val len = io.read_varint32()
-        #         val result = JSONArray()
-        #         if (len > 0) {
-        #             for (i in 0 until len) {
-        #                 //  REMARK：数组不应该返回 null
-        #                 result.put(decode_to_opdata_with_type(_optype, io)!!)
-        #             }
-        #         }
-        #         return result
+      def from_byte_buffer(io, args : Arguments)
+        len = io.read_varint32
+
+        result = Raw::ArrayType.new
+        if len > 0
+          len.times do
+            # => REMARK：数组不应该返回 null
+            result << Raw.new(@optype.from_byte_buffer(io, args).not_nil!)
+          end
+        end
+
+        return result
       end
 
       def to_object(args : Arguments, opdata : Raw?) : Raw?
@@ -638,8 +695,17 @@ module BitShares
         end
       end
 
-      def self.from_byte_buffer(io)
-        # => TODO:
+      def self.from_byte_buffer(io, args : Arguments)
+        len = io.read_varint32
+
+        result = Raw::ArrayType.new
+
+        len.times do
+          # TODO: result is nil?
+          result << Raw.new([KeyT.from_byte_buffer(io, args).not_nil!, ValueT.from_byte_buffer(io, args).not_nil!])
+        end
+
+        return result
       end
 
       def self.to_object(args : Arguments, opdata : Raw) : Raw?
@@ -669,8 +735,18 @@ module BitShares
         opdata.each { |sub_opdata| T.to_byte_buffer(io, args, sub_opdata) }
       end
 
-      def self.from_byte_buffer(io)
-        # => TODO:
+      def self.from_byte_buffer(io, args : Arguments)
+        len = io.read_varint32
+
+        result = Raw::ArrayType.new
+        if len > 0
+          len.times do
+            # => REMARK：数组不应该返回 null
+            result << Raw.new(T.from_byte_buffer(io, args).not_nil!)
+          end
+        end
+
+        return result
       end
 
       def self.to_object(args : Arguments, opdata : Raw?) : Raw?
@@ -701,8 +777,15 @@ module BitShares
         io.write(opdata)
       end
 
-      def self.from_byte_buffer(io)
-        # => TODO:
+      def self.from_byte_buffer(io, args : Arguments)
+        slice = if Size == Nil
+                  Bytes.new(io.read_varint32)
+                else
+                  Bytes.new(Size.as?(Int32).not_nil!)
+                end
+
+        io.read(slice)
+        return slice
       end
 
       def self.to_object(args : Arguments, opdata : Raw) : Raw?
@@ -722,8 +805,12 @@ module BitShares
         end
       end
 
-      def self.from_byte_buffer(io)
-        # => TODO:
+      def self.from_byte_buffer(io, args : Arguments)
+        if io.read_byte.not_nil! == 0
+          nil
+        else
+          T.from_byte_buffer(io, args)
+        end
       end
 
       def self.to_object(args : Arguments, opdata : Raw?) : Raw?
@@ -754,8 +841,14 @@ module BitShares
         optype.to_byte_buffer(io, args, opdata.last)
       end
 
-      def from_byte_buffer(io)
-        # => TODO:
+      def from_byte_buffer(io, args : Arguments)
+        type_id = io.read_varint32
+        optype = @optype_array[type_id]
+
+        result = Raw::ArrayType.new
+        result << Raw.new(type_id)
+        result << Raw.new(optype.from_byte_buffer(io, args).not_nil!)
+        return result
       end
 
       def to_object(args : Arguments, opdata : Raw?) : Raw?
@@ -800,8 +893,14 @@ module BitShares
         optype.to_byte_buffer(io, args, opdata)
       end
 
-      def self.from_byte_buffer(io)
-        raise "not supported"
+      def self.from_byte_buffer(io, args : Arguments)
+        opcode = io.read_varint32
+        optype = BitShares::Operations::Opcode2optype[opcode]
+
+        result = Raw::ArrayType.new
+        result << Raw.new(opcode)
+        result << Raw.new(optype.from_byte_buffer(io, args).not_nil!)
+        return result
       end
 
       def self.to_object(args : Arguments, opdata : Raw?) : Raw?
