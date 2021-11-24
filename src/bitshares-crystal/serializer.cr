@@ -250,6 +250,15 @@ module BitShares
       def initialize(@symbol : Symbol, @type : FieldType)
         @name = @symbol.to_s
       end
+
+      def inspect(io : IO) : Nil
+        # {name : type}
+        io << "{"
+        io << @name
+        io << " : "
+        io << @type
+        io << "}"
+      end
     end
 
     # :nodoc:
@@ -375,6 +384,19 @@ module BitShares
 
       private def self.add_field(symbol : Symbol, type : FieldType)
         @@_fields << Field.new(symbol, type)
+      end
+
+      # REMARK: 自动集成父类的字段定义
+      def self.get_all_fields
+        @@_fields
+      end
+
+      def self.inherited_fields(super_class)
+        @@_fields.concat(super_class.get_all_fields)
+      end
+
+      macro inherited
+        {{ @type }}.inherited_fields({{ @type.superclass }})
       end
     end
 
@@ -1698,13 +1720,7 @@ module BitShares
       add_field :extensions, Tm_set(T_future_extensions)
     end
 
-    class T_signed_transaction < T_composite
-      add_field :ref_block_num, T_uint16
-      add_field :ref_block_prefix, T_uint32
-      add_field :expiration, T_time_point_sec
-      add_field :operations, Tm_array[T_operation]
-      add_field :extensions, Tm_set(T_future_extensions)
-
+    class T_signed_transaction < T_transaction
       add_field :signatures, Tm_array[Tm_bytes(65)]
     end
 
