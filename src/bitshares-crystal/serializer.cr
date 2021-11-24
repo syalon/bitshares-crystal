@@ -289,7 +289,7 @@ module BitShares
       # (public) 反序列化，解析二进制流为 opdata 对象。
       #
       def self.parse(data : Bytes, graphene_address_prefix = "") : Raw?
-        if result = from_byte_buffer(BinaryIO.new(data), Arguments.new(graphene_address_prefix))
+        if (result = from_byte_buffer(BinaryIO.new(data), Arguments.new(graphene_address_prefix))) != nil # REMARK: false is valid value
           Raw.new(result)
         else
           nil
@@ -350,7 +350,7 @@ module BitShares
         else
           result = Raw::HashType.new
           @@_fields.each do |field|
-            if value = field.type.from_byte_buffer(io, args)
+            if (value = field.type.from_byte_buffer(io, args)) != nil # REMARK: false is valid value
               result[field.name] = Raw.new(value)
             end
           end
@@ -386,7 +386,7 @@ module BitShares
         @@_fields << Field.new(symbol, type)
       end
 
-      # REMARK: 自动集成父类的字段定义
+      # REMARK: 自动继承父类的字段定义
       def self.get_all_fields
         @@_fields
       end
@@ -648,7 +648,7 @@ module BitShares
           idx = io.read_varint32
           raise "Index out of range" if idx >= @fields_defs.size
           field = @fields_defs[idx]
-          if value = field.type.from_byte_buffer(io, args)
+          if (value = field.type.from_byte_buffer(io, args)) != nil # REMARK: false is valid value
             result[field.name] = Raw.new(value)
           end
         end
