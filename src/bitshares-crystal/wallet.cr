@@ -7,9 +7,12 @@ module BitShares
     # :nodoc:
     getter client : Client
 
+    @context : Secp256k1Zkp::Context
+
     def initialize(client)
       @client = client
       @private_keys_hash = Hash(String, Secp256k1Zkp::PrivateKey).new
+      @context = Secp256k1Zkp::Context.default
     end
 
     # 清空钱包内存中保存的所有私钥。
@@ -71,11 +74,9 @@ module BitShares
     def sign(sign_message_digest : Bytes, sign_keys_hash : Hash(String, Secp256k1Zkp::PrivateKey)? = nil) : Array(Bytes)
       result = [] of Bytes
 
-      sign_context = Secp256k1Zkp::Context.default
-
       sign_keys_hash = @private_keys_hash if sign_keys_hash.nil? || sign_keys_hash.empty?
       sign_keys_hash.each do |pubkey, private_key|
-        signature = sign_context.sign_compact(sign_message_digest, private_key) rescue nil
+        signature = @context.sign_compact(sign_message_digest, private_key) rescue nil
         raise "Sign failed" if signature.nil?
         result << signature
       end

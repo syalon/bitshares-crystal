@@ -163,6 +163,7 @@ module BitShares
       end
       yield tx
       return tx.broadcast
+
       # return true
     end
 
@@ -295,29 +296,29 @@ module BitShares
     # OP - 创建账号
     def make_account_create(registrar, referrer, referrer_percent, voting_account, name, owner_public_key, active_public_key, memo_public_key = nil)
       op_data = {
-        :fee              => default_fee,
-        :registrar        => registrar,
-        :referrer         => referrer,
-        :referrer_percent => referrer_percent,
-        :name             => name,
-        :owner            => {
-          :weight_threshold => 1,
-          :account_auths    => [] of Array(String | Int32),
-          :key_auths        => [[owner_public_key, 1]],
-          :address_auths    => [] of Array(String | Int32),
+        fee:              default_fee,
+        registrar:        registrar,
+        referrer:         referrer,
+        referrer_percent: referrer_percent,
+        name:             name,
+        owner:            {
+          weight_threshold: 1,
+          account_auths:    Tuple.new,
+          key_auths:        [[owner_public_key, 1]],
+          address_auths:    Tuple.new,
         },
-        :active => {
-          :weight_threshold => 1,
-          :account_auths    => [] of Array(String | Int32),
-          :key_auths        => [[active_public_key, 1]],
-          :address_auths    => [] of Array(String | Int32),
+        active: {
+          weight_threshold: 1,
+          account_auths:    Tuple.new,
+          key_auths:        [[active_public_key, 1]],
+          address_auths:    Tuple.new,
         },
-        :options => {
-          :memo_key       => memo_public_key || active_public_key,
-          :voting_account => voting_account,
-          :num_witness    => 0,
-          :num_committee  => 0,
-          :votes          => [] of String, # TODO:
+        options: {
+          memo_key:       memo_public_key || active_public_key,
+          voting_account: voting_account,
+          num_witness:    0,
+          num_committee:  0,
+          votes:          Tuple.new,
         },
       }
 
