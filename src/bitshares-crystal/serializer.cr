@@ -1156,7 +1156,7 @@ module BitShares
       add_field :fee, T_asset
       add_field :from_account, Tm_protocol_id_type(ObjectType::Account)
       add_field :asset_id, Tm_protocol_id_type(ObjectType::Asset)
-      add_field :amount, T_asset # only core asset
+      add_field :amount, T_share_type # only core asset
       add_field :extensions, Tm_set(T_future_extensions)
     end
 
