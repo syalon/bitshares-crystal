@@ -34,7 +34,7 @@ struct JSON::Any
     return as_i
   end
 
-  def to_u32 : Int64
+  def to_u32 : UInt32
     return as_s.to_u32 if @raw.is_a?(String)
     return as_i64.to_u32
   end
@@ -56,7 +56,7 @@ struct YAML::Any
     return as_i64.to_i32
   end
 
-  def to_u32 : Int64
+  def to_u32 : UInt32
     return as_s.to_u32 if @raw.is_a?(String)
     return as_i64.to_u32
   end
