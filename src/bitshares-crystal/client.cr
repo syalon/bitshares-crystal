@@ -35,15 +35,22 @@ module BitShares
 
     def loop_new_block(sleep_interval = 0.2)
       # 注册新区块通知
+      conn_closed = false
       latest_block_num : UInt32? = nil
       set_block_applied_callback = ->(success : Bool, data : JSON::Any | String) {
-        latest_block_num = block_num_from_id(data[0].as_s) if data.is_a?(JSON::Any)
-        return false
+        if success
+          latest_block_num = block_num_from_id(data[0].as_s) if data.is_a?(JSON::Any)
+          return false
+        else
+          conn_closed = true
+          return true
+        end
       }
       call_db("set_block_applied_callback", [set_block_applied_callback])
 
       # 循环监控新的区块
       while true
+        raise "set_block_applied_callback trigger websocket closed." if conn_closed
         if curr_block_number = latest_block_num
           latest_block_num = nil
           yield(curr_block_number)

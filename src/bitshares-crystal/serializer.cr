@@ -532,9 +532,7 @@ module BitShares
       end
 
       def self.from_byte_buffer(io, args : Arguments)
-        slice = io.read_n_bytes(33)
-        key_data = Secp256k1Zkp::RawdataCompressedPublicKey.new { |i| slice[i] }
-        return Secp256k1Zkp::PublicKey.new(key_data).to_wif(args.graphene_address_prefix)
+        return Secp256k1Zkp::PublicKey.new(io.read_n_bytes(33)).to_wif(args.graphene_address_prefix)
       end
 
       def self.sort_by(args : Arguments, a : Raw, b : Raw)
