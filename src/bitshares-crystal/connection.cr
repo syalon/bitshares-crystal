@@ -234,6 +234,8 @@ module BitShares
     end
 
     private def on_message(message)
+      Log.info { "websocket trigger on message event, current status: #{@status}" }
+
       # => 重置接受数据包的心跳计数
       @_recv_life = KGWS_MAX_RECV_LIFE
 
