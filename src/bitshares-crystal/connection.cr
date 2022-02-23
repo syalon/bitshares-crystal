@@ -248,6 +248,9 @@ module BitShares
         if meth && meth == "notice"
           # => 服务器推送消息 订阅方法 callback 返回 true 则移出 callback。
           callback_id = json["params"][0]
+
+          Log.info { "on_message > notice > callback_id: #{callback_id}, exist callback: #{@subscribe_callback_hash.has_key?(callback_id)}" }
+
           @subscribe_callback_hash.delete(callback_id) if @subscribe_callback_hash[callback_id].call(true, json["params"][1])
         else
           callback_id = json["id"]

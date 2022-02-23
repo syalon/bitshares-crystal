@@ -1,8 +1,11 @@
 # TODO:未完成
+require "log"
 
 module BitShares
   # 交易构造器。
   class Transaction
+    Log = ::Log.for("tx")
+
     def initialize(client : Client)
       @client = client
 
@@ -114,6 +117,8 @@ module BitShares
       got_responsed = false
 
       broadcast_transaction_callback = ->(success : Bool, data : JSON::Any | String) {
+        Log.info { "tx broadcast callback invoked, success: #{success}, got_responsed: #{got_responsed}" }
+
         if !got_responsed
           got_responsed = true
           # TODO: cancel timeout timer?
@@ -126,6 +131,7 @@ module BitShares
       # => 超时处理
       if @client.config.tx_expiration_seconds > 0
         BitShares::Utility.delay(@client.config.tx_expiration_seconds) do
+          Log.info { "tx broadcast timeout invoked, got_responsed: #{got_responsed}" }
           if !got_responsed
             got_responsed = true
             # TODO: timeout 查询 tx id是否进块，而不是单纯忽略。待处理
@@ -153,10 +159,10 @@ module BitShares
       resp = result_channel.receive
       case resp
       when String
-        puts "raise by string: #{resp}"
+        Log.info { "tx result, error string: #{resp}" }
         raise resp
       when Exception
-        puts "raise by error: #{resp}"
+        Log.error(exception: resp) { "tx result, exception." }
         raise resp
       else
         return resp.as(JSON::Any)
