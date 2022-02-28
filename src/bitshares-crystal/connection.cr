@@ -248,10 +248,11 @@ module BitShares
         if meth && meth == "notice"
           # => 服务器推送消息 订阅方法 callback 返回 true 则移出 callback。
           callback_id = json["params"][0]
-
-          Log.info { "on_message > notice > callback_id: #{callback_id}, exist callback: #{@subscribe_callback_hash.has_key?(callback_id)}" }
-
-          @subscribe_callback_hash.delete(callback_id) if @subscribe_callback_hash[callback_id].call(true, json["params"][1])
+          # => REMARK: 这里相同的CALLBACK存在触发多次回调的可能性，所以需要判断下callback是否还存在(或已经被删除了)。
+          # => 猜测原因可能是 部分节点双出导致？同一个 block apply 了2次？
+          if callback = @subscribe_callback_hash[callback_id]?
+            @subscribe_callback_hash.delete(callback_id) if callback.call(true, json["params"][1])
+          end
         else
           callback_id = json["id"]
           # => 普通请求   callback id 完成，移除。
