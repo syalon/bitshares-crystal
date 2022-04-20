@@ -35,9 +35,9 @@ module BitShares
     end
 
     # 广播到链上。
-    def broadcast
+    def broadcast(wait_broadcast_callback = true)
       set_required_fees
-      return broadcast_core(tx_finalize)
+      return broadcast_core(tx_finalize, wait_broadcast_callback)
     end
 
     private def operations_to_object
@@ -105,7 +105,7 @@ module BitShares
       return Operations::T_transaction.to_binary(trx_data, @client.graphene_address_prefix)
     end
 
-    private def broadcast_core(transaction_data : Bytes)
+    private def broadcast_core(transaction_data : Bytes, wait_broadcast_callback : Bool)
       sign_buffer = @client.graphene_chain_id.hexbytes + transaction_data
 
       @signatures = @client.wallet.sign(BitShares::Utility.sha256(sign_buffer), @sign_keys_hash)
@@ -113,6 +113,29 @@ module BitShares
       raise "not signed" if @signatures.empty?
       raise "no operations" if @operations.empty?
 
+      signed_trx_data = {
+        "ref_block_num"    => @ref_block_num,
+        "ref_block_prefix" => @ref_block_prefix,
+        "expiration"       => @expiration,
+        "operations"       => @operations,
+        "extensions"       => @extensions,
+        "signatures"       => @signatures,
+      }
+
+      obj = Operations::T_signed_transaction.to_json(signed_trx_data, @client.graphene_address_prefix)
+      if wait_broadcast_callback
+        return broadcast_core_with_callback(obj)
+      else
+        return broadcast_core_without_callback(obj)
+      end
+    end
+
+    private def broadcast_core_without_callback(obj)
+      # => 广播成功无返回值，广播失败抛出异常。
+      return @client.call_net("broadcast_transaction", [obj])
+    end
+
+    private def broadcast_core_with_callback(obj)
       result_channel = Channel(JSON::Any | String | Exception).new(1)
       got_responsed = false
 
@@ -140,17 +163,6 @@ module BitShares
           end
         end
       end
-
-      signed_trx_data = {
-        "ref_block_num"    => @ref_block_num,
-        "ref_block_prefix" => @ref_block_prefix,
-        "expiration"       => @expiration,
-        "operations"       => @operations,
-        "extensions"       => @extensions,
-        "signatures"       => @signatures,
-      }
-
-      obj = Operations::T_signed_transaction.to_json(signed_trx_data, @client.graphene_address_prefix)
 
       # TODO:异常后取消定时器
 

@@ -159,7 +159,7 @@ module BitShares
     #   yield tx if defined?(yield)
     #   return tx.broadcast
     # end
-    def build(opname : Blockchain::Operations? = nil, opdata = nil)
+    def build(opname : Blockchain::Operations? = nil, opdata = nil, wait_broadcast_callback = true)
       # tx = T1.new(nil)
       # yield tx
 
@@ -169,7 +169,7 @@ module BitShares
         tx.add_operation opname, opdata
       end
       yield tx
-      return tx.broadcast
+      return tx.broadcast(wait_broadcast_callback)
 
       # return true
     end
