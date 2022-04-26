@@ -175,6 +175,16 @@ module BitShares
         v.to_json(json)
       end
 
+      def to_i32 : Int32
+        return as_s.to_i32 if @value.is_a?(String)
+        return as_i.to_i32
+      end
+
+      def to_u32 : UInt32
+        return as_s.to_u32 if @value.is_a?(String)
+        return as_i.to_u32
+      end
+
       def to_i64 : Int64
         return as_s.to_i64 if @value.is_a?(String)
         return as_i.to_i64
