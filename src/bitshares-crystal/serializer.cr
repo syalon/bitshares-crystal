@@ -349,9 +349,10 @@ module BitShares
       @@_fields = [] of Field
 
       def self.to_byte_buffer(io, args : Arguments, opdata : Raw)
-        assert(!@@_fields.empty?)
-        h = opdata.as_h
-        @@_fields.each { |field| field.type.to_byte_buffer(io, args, h[field.name]? || h[field.symbol]?) }
+        if !@@_fields.empty?
+          h = opdata.as_h
+          @@_fields.each { |field| field.type.to_byte_buffer(io, args, h[field.name]? || h[field.symbol]?) }
+        end
       end
 
       def self.from_byte_buffer(io, args : Arguments)
