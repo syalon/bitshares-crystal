@@ -1094,6 +1094,8 @@ module BitShares
         Field[:margin_call_fee_ratio, T_uint16],
         # BSIP-87
         Field[:force_settle_fee_percent, T_uint16],
+        # https://github.com/bitshares/bitshares-core/issues/2467
+        Field[:black_swan_response_method, T_uint8],
       ]
     end
 
