@@ -380,7 +380,6 @@ module BitShares
             if obj
               result[field.name] = obj
             else
-              BitShares::Serialize::Tm_optional(BitShares::Operations::T_memo_data)
               raise "the '#{field.name}' field is missing. #{field.type}" unless field.type.is_a?(T_Base.class) && field.type.as(T_Base.class) < Tm_optional
             end
           end
