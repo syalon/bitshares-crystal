@@ -50,7 +50,7 @@ module BitShares
 
       # 循环监控新的区块
       while true
-        raise "set_block_applied_callback trigger websocket closed." if conn_closed
+        raise SocketClosed.new("set_block_applied_callback trigger websocket closed.") if conn_closed
         if curr_block_number = latest_block_num
           latest_block_num = nil
           yield(curr_block_number)
