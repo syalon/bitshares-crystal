@@ -25,6 +25,24 @@ module BitShares
       Closing
     end
 
+    struct Future
+      @channel = Channel(ChannelDataType).new(1)
+
+      def error(e)
+        @channel.send(e)
+      end
+
+      def done(result)
+        @channel.send(result)
+      end
+
+      def await : JSON::Any
+        result = @channel.receive
+        raise result if result.is_a?(BaseError)
+        return result
+      end
+    end
+
     @websock : HTTP::WebSocket? = nil
     getter status = Status::Pending
     @timer_keep_alive : Proc(Nil)? = nil
@@ -39,34 +57,13 @@ module BitShares
 
     # 同时调用多个 API 接口，具体参数参考 `call` 方法。
     def multi_call(*args)
-      args.each { |arg| async_call(arg[0], arg[1], arg[2]?) }
-      return await_all(args.size)
+      return args.map { |arg| async_call(arg[0], arg[1], arg[2]?) }.map(&.await)
     end
 
     # 异步调用服务器 API 接口
-    def async_call(api_name : String, method : String, params)
+    def async_call(api_name : String, method : String, params) : Future
       raise SocketClosed.new("socket is not connected, status: #{@status}.") unless @status.logined?
       async_send_data(@api_ids[api_name], method, params)
-    end
-
-    # 等待获取异步调用结果
-    def await : JSON::Any
-      return await_all.first
-    end
-
-    # 等待获取1个或多个异步调用结果
-    def await_all(n = 1) : Array(JSON::Any)
-      all_result = [] of JSON::Any
-
-      Array(ChannelDataType).new(n) { @channel.receive }.each do |result|
-        if result.is_a?(BaseError)
-          raise result
-        else
-          all_result << result
-        end
-      end
-
-      return all_result
     end
 
     # 关闭websocket连接，会自动触发 on_close 事件。
@@ -83,14 +80,12 @@ module BitShares
 
     # TODO: ode_url, logger, api_list, keep_alive_callback = nil
     def initialize(node_url : String, timeout : Time::Span? = nil, @api_list = ["database", "network_broadcast", "history"])
-      @channel = Channel(ChannelDataType).new(1)
-
       @username = ""
       @password = ""
       @currentId = 0
 
       @api_ids = Hash(String, Int32).new
-      @normal_callback_hash = Hash(Int32, Bool).new
+      @normal_callback_hash = Hash(Int32, Future).new
       @subscribe_callback_hash = Hash(Int32, Serialize::Raw::SubscribeCallbackType).new
 
       @websock = open_websocket(node_url, timeout: timeout)
@@ -145,7 +140,7 @@ module BitShares
       sock_of_err = wait_connecting_channel.receive
       raise sock_of_err if sock_of_err.is_a?(Exception)
 
-      Log.info { "open url successful: #{uri}" }
+      Log.info { "open url successful." }
 
       # => 返回
       return sock_of_err.not_nil!
@@ -170,8 +165,7 @@ module BitShares
       async_send_data(1, "login", [@username, @password]).await
 
       # => 初始化 API ID
-      @api_list.map { |api_name| async_send_data(1, api_name) }
-      api_ids_list = await_all(@api_list.size)
+      api_ids_list = @api_list.map { |api_name| async_send_data(1, api_name) }.map(&.await)
       @api_list.each_with_index { |api_name, idx| @api_ids[api_name] = api_ids_list[idx].as_i }
 
       # => 启动心跳计时器
@@ -217,7 +211,7 @@ module BitShares
     end
 
     private def on_close(code, str)
-      Log.info { "websocket trigger on close event, str: #{str} code: #{code}. current status: #{@status}" }
+      Log.info { "websocket trigger ON_CLOSE event, str: #{str} code: #{code}. current status: #{@status}" }
 
       return if @status.closed?
 
@@ -229,12 +223,12 @@ module BitShares
       @timer_keep_alive = nil
 
       # => 连接中断，关闭所有 callback 和 等待中的 await 对象。
-      @normal_callback_hash.tap { |hash| hash.each { |callback_id, _| @channel.send SocketClosed.new("on close, msg: #{str} code: #{code}.") } }.clear
-      @subscribe_callback_hash.tap { |hash| hash.each { |callback_id, sub_callback| sub_callback.call(false, "on_close") } }.clear
+      @normal_callback_hash.tap { |hash| hash.each { |callback_id, future| future.error(SocketClosed.new("on close, msg: #{str} code: #{code}.")) } }.clear
+      @subscribe_callback_hash.tap { |hash| hash.each { |callback_id, sub_callback| sub_callback.call(false, "on_close") rescue nil } }.clear
     end
 
     private def on_message(message)
-      Log.info { "websocket trigger on message event, current status: #{@status}" }
+      # Log.info { "websocket trigger on message event, current status: #{@status}" }
 
       # => 重置接受数据包的心跳计数
       @_recv_life = KGWS_MAX_RECV_LIFE
@@ -243,32 +237,39 @@ module BitShares
       json = JSON.parse(message) rescue nil
       if json.nil?
         close_websocket("invalid responsed json string.")
-      else
-        meth = json["method"]?
-        if meth && meth == "notice"
-          # => 服务器推送消息 订阅方法 callback 返回 true 则移出 callback。
-          callback_id = json["params"][0]
-          # => REMARK: 这里相同的CALLBACK存在触发多次回调的可能性，所以需要判断下callback是否还存在(或已经被删除了)。
-          # => 猜测原因可能是 部分节点双出导致？同一个 block apply 了2次？
-          if callback = @subscribe_callback_hash[callback_id]?
-            @subscribe_callback_hash.delete(callback_id) if callback.call(true, json["params"][1])
-          end
+        return
+      end
+
+      meth = json["method"]?
+      if meth && meth == "notice"
+        # => 服务器推送消息 订阅方法 callback 返回 true 则移出 callback。
+        callback_id = json["params"][0]
+        # => REMARK: 这里相同的CALLBACK存在触发多次回调的可能性，所以需要判断下callback是否还存在(或已经被删除了)。
+        # => 猜测原因可能是 部分节点双出导致？同一个 block apply 了2次？
+        if callback = @subscribe_callback_hash[callback_id]?
+          # => REMARK: 该 callback 回调不应该 block 当前 fiber
+          @subscribe_callback_hash.delete(callback_id) if callback.call(true, json["params"][1])
         else
-          callback_id = json["id"]
-          # => 普通请求   callback id 完成，移除。
-          @normal_callback_hash.delete(callback_id)
+          Log.error { "unknown websocket response, notice type." }
+        end
+      else
+        # => 普通请求   callback id 完成，移除。
+        callback_id = json["id"]
+        if future = @normal_callback_hash.delete(callback_id)
           # => 返回
           error = json["error"]?
           if error
-            @channel.send ResponseError.new(error)
+            future.error(ResponseError.new(error))
           else
-            @channel.send json["result"]
+            future.done(json["result"])
           end
+        else
+          Log.error { "unknown websocket response, normal callback." }
         end
       end
     end
 
-    private def async_send_data(api_id : Int32, method : String, params = nil)
+    private def async_send_data(api_id : Int32, method : String, params = nil) : Future
       # => ID计数器
       @currentId += 1
 
@@ -330,10 +331,9 @@ module BitShares
       # => 发送数据
       @_send_life = KGWS_MAX_SEND_LIFE
       @websock.try &.send(json.to_json)
-      @normal_callback_hash[@currentId] = true
 
-      # => 返回 TODO:改成 future 对象方便以后  await？
-      return self
+      future = @normal_callback_hash[@currentId] = Future.new
+      return future
     end
   end
 
@@ -406,18 +406,24 @@ module BitShares
       return url
     end
 
-    private def gen_websocket
-      @sock = GrapheneWebSocket.new(gen_next_ws_node, Time::Span.new(seconds: 15), @config.api_list)
-      @sock.not_nil!.on_keep_alive do |sock|
+    private def gen_websocket : GrapheneWebSocket
+      if @sock.nil?
+        Log.info { "client gen websocket first time." }
+      else
+        Log.info { "client gen websocket again." }
+      end
+      s = @sock = GrapheneWebSocket.new(gen_next_ws_node, Time::Span.new(seconds: 15), @config.api_list)
+      s.on_keep_alive do |sock|
         if sock.status.logined?
           begin
             head_block_number = sock.call("database", "get_objects", [["2.1.0"]]).as_a.first["head_block_number"].as_i.to_u64
             Log.info { "heartbeat tick ok, head block number: #{head_block_number}." }
           rescue e : Exception
-            Log.error { "heartbeat tick failed, error: #{e.message}" }
+            Log.error(exception: e) { "heartbeat tick failed" }
           end
         end
       end
+      return s
     end
 
     private def safe_get_websocket : GrapheneWebSocket
