@@ -430,8 +430,7 @@ module BitShares
       sock = @sock
       if sock.nil?
         # => 初始化网络连接
-        gen_websocket
-        return @sock.not_nil!
+        return gen_websocket
       else
         # => 状态处理
 
@@ -450,8 +449,7 @@ module BitShares
           return sock
         when .closed?, .closing? # => 正在断开连接、已断开连接
           if @config.auto_restart
-            gen_websocket
-            return sock
+            return gen_websocket
           else
             # => TODO:ing
             raise "WebSocket disconnected..."
