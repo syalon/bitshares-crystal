@@ -68,8 +68,8 @@ module BitShares
 
     # 关闭websocket连接，会自动触发 on_close 事件。
     def close_websocket(reason = "")
+      Log.debug { "user call close_websocket: #{reason}, status: #{@status}" }
       return if @status.closed? || @status.closing?
-      Log.info { "user call close_websocket: #{reason}" }
       @status = Status::Closing
       @websock.try &.close
     end
@@ -97,7 +97,7 @@ module BitShares
     # ● (private) 打开 websocket 并等待连接成功
     # --------------------------------------------------------------------------
     private def open_websocket(uri : String, timeout : Time::Span? = nil) : HTTP::WebSocket
-      Log.info { "ready to open url: #{uri}" }
+      Log.debug { "ready to open url: #{uri}" }
 
       wait_connecting_channel = Channel(HTTP::WebSocket | Exception).new(1)
       connect_status = Status::Pending
@@ -140,7 +140,7 @@ module BitShares
       sock_of_err = wait_connecting_channel.receive
       raise sock_of_err if sock_of_err.is_a?(Exception)
 
-      Log.info { "open url successful." }
+      Log.debug { "open url successful: #{url}" }
 
       # => 返回
       return sock_of_err.not_nil!
@@ -171,7 +171,7 @@ module BitShares
       # => 启动心跳计时器
       @timer_keep_alive = start_loop_timer(seconds: 5) { __internal_keep_alive_timer_tick }
 
-      Log.info { "login to server done." }
+      Log.debug { "login to server done." }
 
       # => 更新状态：已登录
       @status = Status::Logined
@@ -211,9 +211,11 @@ module BitShares
     end
 
     private def on_close(code, str)
-      Log.info { "websocket trigger ON_CLOSE event, str: #{str} code: #{code}. current status: #{@status}" }
+      Log.debug { "websocket trigger ON_CLOSE event, str: #{str} code: #{code}. current status: #{@status}" }
 
       return if @status.closed?
+
+      Log.debug { "on close clean, force trigger future, normal: #{@normal_callback_hash.size}, subscribe: #{@subscribe_callback_hash.size}" }
 
       # => 处于 pending、logined 状态则直接关闭
       @status = Status::Closed
