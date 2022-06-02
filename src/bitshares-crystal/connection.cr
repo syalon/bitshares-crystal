@@ -140,7 +140,7 @@ module BitShares
       sock_of_err = wait_connecting_channel.receive
       raise sock_of_err if sock_of_err.is_a?(Exception)
 
-      Log.debug { "open url successful: #{url}" }
+      Log.debug { "open url successful: #{uri}" }
 
       # => 返回
       return sock_of_err.not_nil!
