@@ -174,6 +174,13 @@ module BitShares
       # return true
     end
 
+    # => REMARK: 需要手动设置 opdata 的 fee。
+    def fast_build(data_dynamic_global_properties) : Bytes
+      tx = FastTransaction.new(self)
+      yield tx
+      tx.broadcast(data_dynamic_global_properties)
+    end
+
     # TODO:
     # class T_asset_options < T_composite
     #   add_field :max_supply, T_int64
