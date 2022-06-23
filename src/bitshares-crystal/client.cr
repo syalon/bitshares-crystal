@@ -308,7 +308,7 @@ module BitShares
     end
 
     # OP - 创建账号
-    def make_account_create(registrar, referrer, referrer_percent, voting_account, name, owner_public_key, active_public_key, memo_public_key = nil)
+    def make_account_create(registrar, referrer, referrer_percent, voting_account, name, owner_public_key, active_public_key, memo_public_key = nil, ext = nil)
       op_data = {
         fee:              default_fee,
         registrar:        registrar,
@@ -336,7 +336,11 @@ module BitShares
         },
       }
 
-      return op_data
+      if ext
+        return op_data.merge({extensions: ext})
+      else
+        return op_data
+      end
     end
 
     def do_account_create(registrar, referrer, referrer_percent, voting_account, name, owner_public_key, active_public_key, memo_public_key = nil)
