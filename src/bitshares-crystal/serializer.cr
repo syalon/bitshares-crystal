@@ -99,7 +99,7 @@ module BitShares
     end
 
     # :nodoc:
-    alias FieldType = T_Base.class | Tm_Base
+    alias FieldType = T_Base.class
 
     # :nodoc:
     struct Raw
@@ -576,25 +576,6 @@ module BitShares
       end
     end
 
-    #
-    # 动态扩展类型，部分类型采用 Generics 泛型特性处理，对于不支持的常量参数类型，则采用 Tm_Base 子类实现。
-    #
-    # Generics支持的常量参数类型有限。
-    # to_object
-    abstract class Tm_Base < T_Base
-      def self.[](only_one_arg)
-        new(only_one_arg)
-      end
-
-      def self.[](first, seconds, *others)
-        new([first, seconds, *others]) # Tuple to Array
-      end
-
-      abstract def to_byte_buffer(io, args : Arguments, opdata : Raw?)
-      abstract def from_byte_buffer(io, args : Arguments)
-      abstract def to_object(args : Arguments, opdata : Raw?) : Raw?
-    end
-
     class Tm_protocol_id_type(ReqObjectType) < T_Base
       def self.to_byte_buffer(io, args : Arguments, opdata : Raw)
         io.write_object_id(opdata.as_s, ReqObjectType)
@@ -613,49 +594,39 @@ module BitShares
       end
     end
 
-    class Tm_extension < Tm_Base
-      @fields_defs = [] of Field
-
-      def initialize(fields_defs : Field | Array(Field))
-        if fields_defs.is_a?(Field)
-          @fields_defs << fields_defs
-        else
-          fields_defs.each { |f| @fields_defs << f }
-        end
-      end
-
-      def to_byte_buffer(io, args : Arguments, opdata : Raw?)
+    class Tm_extension < T_Base
+      def self.to_byte_buffer(io, args : Arguments, opdata : Raw?)
         opdata = opdata.try(&.as_h?)
 
         # 统计出现的扩展字段数量
         field_count = 0
-        @fields_defs.each { |fields| field_count += 1 if opdata.has_key?(fields.name) } if opdata
+        @@_fields.each { |field| field_count += 1 if opdata[field.name]? || opdata[field.symbol]? } if opdata
 
         # 写入扩展字段数量
         io.write_varint32(field_count)
 
         # 写入扩展字段的值
         if opdata && field_count > 0
-          @fields_defs.each_with_index do |fields, idx|
-            obj = opdata[fields.name]?
+          @@_fields.each_with_index do |field, idx|
+            obj = opdata[field.name]? || opdata[field.symbol]?
             if obj
               io.write_varint32(idx)
-              fields.type.to_byte_buffer(io, args, obj)
+              field.type.to_byte_buffer(io, args, obj)
             end
           end
         end
       end
 
-      def from_byte_buffer(io, args : Arguments)
+      def self.from_byte_buffer(io, args : Arguments)
         len = io.read_varint32
-        raise "Too many fields" if len > @fields_defs.size
+        raise "Too many fields" if len > @@_fields.size
         return nil if len == 0
 
         result = Raw::HashType.new
         len.times do |i|
           idx = io.read_varint32
-          raise "Index out of range" if idx >= @fields_defs.size
-          field = @fields_defs[idx]
+          raise "Index out of range" if idx >= @@_fields.size
+          field = @@_fields[idx]
           if (value = field.type.from_byte_buffer(io, args)) != nil # REMARK: false is valid value
             result[field.name] = Raw.new(value)
           end
@@ -663,50 +634,110 @@ module BitShares
         return result
       end
 
-      def to_object(args : Arguments, opdata : Raw?) : Raw?
+      def self.to_object(args : Arguments, opdata : Raw?) : Raw?
         result = Hash(String, Raw).new
 
         opdata = opdata.try(&.as_h?)
         if opdata
-          @fields_defs.each do |fields|
-            obj = opdata[fields.name]?
-            result[fields.name] = fields.type.to_object(args, obj).not_nil! if obj
+          @@_fields.each do |field|
+            obj = opdata[field.name]? || opdata[field.symbol]?
+            result[field.name] = field.type.to_object(args, obj).not_nil! if obj
           end
         end
 
         return Raw.new(result)
       end
+
+      @@_fields = [] of Field
+
+      # def self.to_byte_buffer(io, args : Arguments, opdata : Raw)
+      #   if !@@_fields.empty?
+      #     h = opdata.as_h
+      #     @@_fields.each { |field| field.type.to_byte_buffer(io, args, h[field.name]? || h[field.symbol]?) }
+      #   end
+      # end
+
+      # def self.from_byte_buffer(io, args : Arguments)
+      #   if @@_fields.empty?
+      #     nil
+      #   else
+      #     result = Raw::HashType.new
+      #     @@_fields.each do |field|
+      #       if (value = field.type.from_byte_buffer(io, args)) != nil # REMARK: false is valid value
+      #         result[field.name] = Raw.new(value)
+      #       end
+      #     end
+      #     return result
+      #   end
+      # end
+
+      # def self.to_object(args : Arguments, opdata : Raw) : Raw?
+      #   if @@_fields.empty?
+      #     return opdata
+      #   else
+      #     h = opdata.as_h
+      #     result = Hash(String, Raw).new
+      #     @@_fields.each do |field|
+      #       obj = field.type.to_object(args, h[field.name]? || h[field.symbol]?)
+      #       if obj
+      #         result[field.name] = obj
+      #       else
+      #         raise "the '#{field.name}' field is missing. #{field.type}" unless field.type.is_a?(T_Base.class) && field.type.as(T_Base.class) < Tm_optional
+      #       end
+      #     end
+      #     return Raw.new(result)
+      #   end
+      # end
+
+      # :nodoc:
+      macro define(name, type)
+        add_field(:{{ name.id }}, {{ type }})
+      end
+
+      private def self.add_field(symbol : Symbol, type : FieldType)
+        @@_fields << Field.new(symbol, type)
+      end
+
+      # REMARK: 自动继承父类的字段定义
+      def self.get_all_fields
+        @@_fields
+      end
+
+      def self.inherited_fields(super_class)
+        @@_fields.concat(super_class.get_all_fields)
+      end
+
+      macro inherited
+        {{ @type }}.inherited_fields({{ @type.superclass }})
+      end
     end
 
-    class Tm_array < Tm_Base
-      def initialize(@optype : FieldType)
-      end
-
-      def to_byte_buffer(io, args : Arguments, opdata : Raw?)
+    class Tm_array(T) < T_Base
+      def self.to_byte_buffer(io, args : Arguments, opdata : Raw?)
         opdata = opdata.not_nil!.as_a
         io.write_varint32(opdata.size)
-        opdata.each { |sub_opdata| @optype.to_byte_buffer(io, args, sub_opdata) }
+        opdata.each { |sub_opdata| T.to_byte_buffer(io, args, sub_opdata) }
       end
 
-      def from_byte_buffer(io, args : Arguments)
+      def self.from_byte_buffer(io, args : Arguments)
         len = io.read_varint32
 
         result = Raw::ArrayType.new
         if len > 0
           len.times do
             # => REMARK：数组不应该返回 null
-            result << Raw.new(@optype.from_byte_buffer(io, args).not_nil!)
+            result << Raw.new(T.from_byte_buffer(io, args).not_nil!)
           end
         end
 
         return result
       end
 
-      def to_object(args : Arguments, opdata : Raw?) : Raw?
+      def self.to_object(args : Arguments, opdata : Raw?) : Raw?
         opdata = opdata.try(&.as_a).not_nil!
 
         ary = [] of Raw
-        opdata.each { |sub_opdata| ary << @optype.to_object(args, sub_opdata).not_nil! }
+        opdata.each { |sub_opdata| ary << T.to_object(args, sub_opdata).not_nil! }
 
         return Raw.new(ary)
       end
@@ -849,31 +880,37 @@ module BitShares
       end
     end
 
-    class Tm_static_variant < Tm_Base
-      @optype_array = [] of FieldType
-
-      def initialize(optype_array : FieldType | Array(FieldType))
-        if optype_array.is_a?(FieldType)
-          @optype_array << optype_array
-        else
-          optype_array.each { |v| @optype_array << v }
-        end
+    class Tm_static_variant(*T) < T_Base
+      private def self.type_id_to_optype(type_id)
+        {% begin %}
+          case type_id
+          {% for i in 0...T.size %}
+            when {{i}}
+              return T[{{i}}]
+          {% end %}
+          end
+        {% end %}
+        return nil
       end
 
-      def to_byte_buffer(io, args : Arguments, opdata : Raw?)
+      def self.to_byte_buffer(io, args : Arguments, opdata : Raw?)
         opdata = opdata.not_nil!.as_a
-
         assert(opdata.size == 2)
         type_id = opdata[0].as_i.to_i32
-        optype = @optype_array[type_id]
+
+        optype = type_id_to_optype(type_id)
+        raise "invalid type id: #{type_id}" if optype.nil?
+
         # => 1、write typeid  2、write opdata
         io.write_varint32(type_id)
         optype.to_byte_buffer(io, args, opdata.last)
       end
 
-      def from_byte_buffer(io, args : Arguments)
+      def self.from_byte_buffer(io, args : Arguments)
         type_id = io.read_varint32
-        optype = @optype_array[type_id]
+
+        optype = type_id_to_optype(type_id)
+        raise "invalid type id: #{type_id}" if optype.nil?
 
         result = Raw::ArrayType.new
         result << Raw.new(type_id)
@@ -881,12 +918,13 @@ module BitShares
         return result
       end
 
-      def to_object(args : Arguments, opdata : Raw?) : Raw?
+      def self.to_object(args : Arguments, opdata : Raw?) : Raw?
         opdata = opdata.not_nil!.as_a
-
         assert(opdata.size == 2)
         type_id = opdata[0].as_i.to_i32
-        optype = @optype_array[type_id]
+
+        optype = type_id_to_optype(type_id)
+        raise "invalid type id: #{type_id}" if optype.nil?
 
         return Raw.new([Raw.new(type_id), optype.to_object(args, opdata.last).not_nil!])
       end
@@ -905,7 +943,7 @@ module BitShares
 
     class T_Test < T_composite
       add_field :amount, T_uint8
-      add_field :amount_array, Tm_array[T_uint8]
+      add_field :amount_array, Tm_array(T_uint8)
     end
 
     class T_operation < T_composite
@@ -986,13 +1024,15 @@ module BitShares
     end
 
     class OP_call_order_update < T_composite
+      class Ext < Tm_extension
+        add_field :target_collateral_ratio, T_uint16
+      end
+
       add_field :fee, T_asset
       add_field :funding_account, Tm_protocol_id_type(ObjectType::Account)
       add_field :delta_collateral, T_asset
       add_field :delta_debt, T_asset
-      add_field :extensions, Tm_extension[
-        Field[:target_collateral_ratio, T_uint16],
-      ]
+      add_field :extensions, Ext
     end
 
     # TODO:OP virtual Fill_order
@@ -1021,7 +1061,7 @@ module BitShares
       add_field :num_top_holders, T_uint8
     end
 
-    T_special_authority = Tm_static_variant[T_no_special_authority, T_top_holders_special_authority]
+    alias T_special_authority = Tm_static_variant(T_no_special_authority, T_top_holders_special_authority)
 
     class T_buyback_account_options < T_composite
       add_field :asset_to_buy, Tm_protocol_id_type(ObjectType::Asset)
@@ -1030,6 +1070,13 @@ module BitShares
     end
 
     class OP_account_create < T_composite
+      class Ext < Tm_extension
+        add_field :null_ext, T_void
+        add_field :owner_special_authority, T_special_authority
+        add_field :active_special_authority, T_special_authority
+        add_field :buyback_options, T_buyback_account_options
+      end
+
       add_field :fee, T_asset
       add_field :registrar, Tm_protocol_id_type(ObjectType::Account)
       add_field :referrer, Tm_protocol_id_type(ObjectType::Account)
@@ -1038,25 +1085,22 @@ module BitShares
       add_field :owner, T_authority
       add_field :active, T_authority
       add_field :options, T_account_options
-      add_field :extensions, Tm_extension[
-        Field[:null_ext, T_void],
-        Field[:owner_special_authority, T_special_authority],
-        Field[:active_special_authority, T_special_authority],
-        Field[:buyback_options, T_buyback_account_options],
-      ]
+      add_field :extensions, Ext
     end
 
     class OP_account_update < T_composite
+      class Ext < Tm_extension
+        add_field :null_ext, T_void
+        add_field :owner_special_authority, T_special_authority
+        add_field :active_special_authority, T_special_authority
+      end
+
       add_field :fee, T_asset
       add_field :account, Tm_protocol_id_type(ObjectType::Account)
       add_field :owner, Tm_optional(T_authority)
       add_field :active, Tm_optional(T_authority)
       add_field :new_options, Tm_optional(T_account_options)
-      add_field :extensions, Tm_extension[
-        Field[:null_ext, T_void],
-        Field[:owner_special_authority, T_special_authority],
-        Field[:active_special_authority, T_special_authority],
-      ]
+      add_field :extensions, Ext
     end
 
     class OP_account_whitelist < T_composite
@@ -1083,6 +1127,12 @@ module BitShares
     end
 
     class T_asset_options < T_composite
+      class Ext < Tm_extension
+        add_field :reward_percent, T_uint16
+        add_field :whitelist_market_fee_sharing, Tm_set(Tm_protocol_id_type(ObjectType::Account))
+        add_field :taker_fee_percent, T_uint16 # => After BSIP81 activation, taker_fee_percent is the taker fee
+      end
+
       add_field :max_supply, T_int64
       add_field :market_fee_percent, T_uint16
       add_field :max_market_fee, T_int64
@@ -1094,35 +1144,26 @@ module BitShares
       add_field :whitelist_markets, Tm_set(Tm_protocol_id_type(ObjectType::Asset))
       add_field :blacklist_markets, Tm_set(Tm_protocol_id_type(ObjectType::Asset))
       add_field :description, T_string
-      add_field :extensions, Tm_extension[
-        Field[:reward_percent, T_uint16],
-        Field[:whitelist_market_fee_sharing, Tm_set(Tm_protocol_id_type(ObjectType::Account))],
-        # => After BSIP81 activation, taker_fee_percent is the taker fee
-        Field[:taker_fee_percent, T_uint16],
-      ]
+      add_field :extensions, Ext
     end
 
     class T_bitasset_options < T_composite
+      class Ext < Tm_extension
+        add_field :initial_collateral_ratio, T_uint16     # => BSIP-77
+        add_field :maintenance_collateral_ratio, T_uint16 # => BSIP-75
+        add_field :maximum_short_squeeze_ratio, T_uint16  # => BSIP-75
+        add_field :margin_call_fee_ratio, T_uint16        # => BSIP 74
+        add_field :force_settle_fee_percent, T_uint16     # => BSIP-87
+        add_field :black_swan_response_method, T_uint8    # => https://github.com/bitshares/bitshares-core/issues/2467
+      end
+
       add_field :feed_lifetime_sec, T_uint32
       add_field :minimum_feeds, T_uint8
       add_field :force_settlement_delay_sec, T_uint32
       add_field :force_settlement_offset_percent, T_uint16
       add_field :maximum_force_settlement_volume, T_uint16
       add_field :short_backing_asset, Tm_set(Tm_protocol_id_type(ObjectType::Asset))
-      add_field :extensions, Tm_extension[
-        # BSIP-77
-        Field[:initial_collateral_ratio, T_uint16],
-        # BSIP-75
-        Field[:maintenance_collateral_ratio, T_uint16],
-        # BSIP-75
-        Field[:maximum_short_squeeze_ratio, T_uint16],
-        # BSIP 74
-        Field[:margin_call_fee_ratio, T_uint16],
-        # BSIP-87
-        Field[:force_settle_fee_percent, T_uint16],
-        # https://github.com/bitshares/bitshares-core/issues/2467
-        Field[:black_swan_response_method, T_uint8],
-      ]
+      add_field :extensions, Ext
     end
 
     class T_price < T_composite
@@ -1149,17 +1190,17 @@ module BitShares
     end
 
     class OP_asset_update < T_composite
+      class Ext < Tm_extension
+        add_field :new_precision, T_uint8          # => After BSIP48, the precision of an asset can be updated if no supply is available
+        add_field :skip_core_exchange_rate, T_bool # => After BSIP48, if this option is set to true, the asset's core_exchange_rate won't be updated.
+      end
+
       add_field :fee, T_asset
       add_field :issuer, Tm_protocol_id_type(ObjectType::Account)
       add_field :asset_to_update, Tm_protocol_id_type(ObjectType::Asset)
       add_field :new_issuer, Tm_optional(Tm_protocol_id_type(ObjectType::Account))
       add_field :new_options, T_asset_options
-      add_field :extensions, Tm_extension[
-        # After BSIP48, the precision of an asset can be updated if no supply is available
-        Field[:new_precision, T_uint8],
-        # After BSIP48, if this option is set to true, the asset's core_exchange_rate won't be updated.
-        Field[:skip_core_exchange_rate, T_bool],
-      ]
+      add_field :extensions, Ext
     end
 
     class OP_asset_update_bitasset < T_composite
@@ -1218,14 +1259,15 @@ module BitShares
     end
 
     class OP_asset_publish_feed < T_composite
+      class Ext < Tm_extension
+        add_field :initial_collateral_ratio, T_uint16 # => After BSIP77, price feed producers can feed ICR too
+      end
+
       add_field :fee, T_asset
       add_field :publisher, Tm_protocol_id_type(ObjectType::Account)
       add_field :asset_id, Tm_protocol_id_type(ObjectType::Asset)
       add_field :feed, T_price_feed
-      add_field :extensions, Tm_extension[
-        # After BSIP77, price feed producers can feed ICR too
-        Field[:initial_collateral_ratio, T_uint16],
-      ]
+      add_field :extensions, Ext
     end
 
     class OP_witness_create < T_composite
@@ -1251,7 +1293,7 @@ module BitShares
       add_field :fee, T_asset
       add_field :fee_paying_account, Tm_protocol_id_type(ObjectType::Account)
       add_field :expiration_time, T_time_point_sec
-      add_field :proposed_ops, Tm_array[T_op_wrapper]
+      add_field :proposed_ops, Tm_array(T_op_wrapper)
       add_field :review_period_seconds, Tm_optional(T_uint32)
       add_field :extensions, Tm_set(T_future_extensions)
     end
@@ -1345,11 +1387,7 @@ module BitShares
     class T_instant_vesting_policy_initializer < T_composite
     end
 
-    T_vesting_policy_initializer = Tm_static_variant[
-      T_linear_vesting_policy_initializer,
-      T_cdd_vesting_policy_initializer,
-      T_instant_vesting_policy_initializer,
-    ]
+    alias T_vesting_policy_initializer = Tm_static_variant(T_linear_vesting_policy_initializer, T_cdd_vesting_policy_initializer, T_instant_vesting_policy_initializer)
 
     class OP_vesting_balance_create < T_composite
       add_field :fee, T_asset
@@ -1376,11 +1414,7 @@ module BitShares
     class T_refund_worker_initializer < T_composite
     end
 
-    T_worker_initializer = Tm_static_variant[
-      T_refund_worker_initializer,
-      T_vesting_balance_worker_initializer,
-      T_burn_worker_initializer,
-    ]
+    alias T_worker_initializer = Tm_static_variant(T_refund_worker_initializer, T_vesting_balance_worker_initializer, T_burn_worker_initializer)
 
     class OP_worker_create < T_composite
       add_field :fee, T_asset
@@ -1409,7 +1443,7 @@ module BitShares
     end
 
     class T_custom_plugin_operation < T_composite
-      add_field :data, Tm_static_variant[T_account_storage_map]
+      add_field :data, Tm_static_variant(T_account_storage_map)
     end
 
     class T_assert_predicate_account_name_eq_lit < T_composite
@@ -1426,16 +1460,12 @@ module BitShares
       add_field :id, Tm_bytes(20) # RMD160
     end
 
-    T_assert_predicate = Tm_static_variant[
-      T_assert_predicate_account_name_eq_lit,
-      T_assert_predicate_asset_symbol_eq_lit,
-      T_assert_predicate_block_id,
-    ]
+    alias T_assert_predicate = Tm_static_variant(T_assert_predicate_account_name_eq_lit, T_assert_predicate_asset_symbol_eq_lit, T_assert_predicate_block_id)
 
     class OP_assert < T_composite
       add_field :fee, T_asset
       add_field :fee_paying_account, Tm_protocol_id_type(ObjectType::Account)
-      add_field :predicates, Tm_array[T_assert_predicate]
+      add_field :predicates, Tm_array(T_assert_predicate)
       add_field :required_auths, Tm_set(Tm_protocol_id_type(ObjectType::Account))
       add_field :extensions, Tm_set(T_future_extensions)
     end
@@ -1489,13 +1519,13 @@ module BitShares
       add_field :amount, T_asset
       add_field :from, Tm_protocol_id_type(ObjectType::Account)
       add_field :blinding_factor, Tm_bytes(32) # blind_factor_type -> SHA256
-      add_field :outputs, Tm_array[T_blind_output]
+      add_field :outputs, Tm_array(T_blind_output)
     end
 
     class OP_blind_transfer < T_composite
       add_field :fee, T_asset
-      add_field :inputs, Tm_array[T_blind_input]
-      add_field :outputs, Tm_array[T_blind_output]
+      add_field :inputs, Tm_array(T_blind_input)
+      add_field :outputs, Tm_array(T_blind_output)
     end
 
     class OP_transfer_from_blind < T_composite
@@ -1503,18 +1533,20 @@ module BitShares
       add_field :amount, T_asset
       add_field :to, Tm_protocol_id_type(ObjectType::Account)
       add_field :blinding_factor, Tm_bytes(32) # blind_factor_type -> SHA256
-      add_field :inputs, Tm_array[T_blind_input]
+      add_field :inputs, Tm_array(T_blind_input)
     end
 
     # TODO:OP virtual Asset_settle_cancel
 
     class OP_asset_claim_fees < T_composite
+      class Ext < Tm_extension
+        add_field :claim_from_asset_id, Tm_protocol_id_type(ObjectType::Asset)
+      end
+
       add_field :fee, T_asset
       add_field :issuer, Tm_protocol_id_type(ObjectType::Account)
       add_field :amount_to_claim, T_asset # amount_to_claim.asset_id->issuer must == issuer
-      add_field :extensions, Tm_extension[
-        Field[:claim_from_asset_id, Tm_protocol_id_type(ObjectType::Asset)],
-      ]
+      add_field :extensions, Ext
     end
 
     # TODO:OP virtual Fba_distribute
@@ -1545,14 +1577,17 @@ module BitShares
       add_field :extensions, Tm_set(T_future_extensions)
     end
 
-    T_htlc_hash = Tm_static_variant[
-      Tm_bytes(20), # RMD160
-      Tm_bytes(20), # SHA1 or SHA160
-      Tm_bytes(32), # SHA256
-      Tm_bytes(20), # HASH160 = RMD160(SHA256(data))
-    ]
+    alias T_hash_rmd160 = Tm_bytes(20)  # => RMD160
+    alias T_hash_sha1 = Tm_bytes(20)    # => SHA1 or SHA160
+    alias T_hash_sha256 = Tm_bytes(32)  # => SHA256
+    alias T_hash_hash160 = Tm_bytes(20) # => HASH160 = RMD160(SHA256(data))
+    alias T_htlc_hash = Tm_static_variant(T_hash_rmd160, T_hash_sha1, T_hash_sha256, T_hash_hash160)
 
     class OP_htlc_create < T_composite
+      class Ext < Tm_extension
+        add_field :memo, T_memo_data
+      end
+
       add_field :fee, T_asset
       add_field :from, Tm_protocol_id_type(ObjectType::Account)
       add_field :to, Tm_protocol_id_type(ObjectType::Account)
@@ -1560,9 +1595,7 @@ module BitShares
       add_field :preimage_hash, T_htlc_hash
       add_field :preimage_size, T_uint16
       add_field :claim_period_seconds, T_uint32
-      add_field :extensions, Tm_extension[
-        Field[:memo, T_memo_data],
-      ]
+      add_field :extensions, Ext
     end
 
     class OP_htlc_redeem < T_composite
@@ -1776,12 +1809,12 @@ module BitShares
       add_field :ref_block_num, T_uint16
       add_field :ref_block_prefix, T_uint32
       add_field :expiration, T_time_point_sec
-      add_field :operations, Tm_array[T_operation]
+      add_field :operations, Tm_array(T_operation)
       add_field :extensions, Tm_set(T_future_extensions)
     end
 
     class T_signed_transaction < T_transaction
-      add_field :signatures, Tm_array[Tm_bytes(65)]
+      add_field :signatures, Tm_array(Tm_bytes(65))
     end
 
     # => 把所有的 operations 的序列化对象和 opcode 关联。
