@@ -1,4 +1,5 @@
-require "json"
+require "json" # TODO:remove?
+require "crystal-secp256k1-zkp"
 
 module Graphene
   module Serialize
@@ -97,181 +98,7 @@ module Graphene
 
       # def w_object_id(io, args, value, object_type_symbol)
       # end
-
     end
-
-    # :nodoc:
-    # alias FieldType = T_Base.class
-
-    # # :nodoc:
-    # struct Raw
-    #   alias SubscribeCallbackType = (Bool, JSON::Any | String) -> Bool
-
-    #   alias PrimitiveType = Bool | Int8 | Int16 | Int32 | Int64 | UInt8 | UInt16 | UInt32 | UInt64 | Float32 | Float64 | String | Bytes | SubscribeCallbackType
-    #   alias ArrayType = Array(self)
-    #   alias HashType = Hash(String, self)
-    #   alias ValueType = PrimitiveType | ArrayType | HashType
-
-    #   property value : ValueType
-
-    #   def as_b : Bool
-    #     @value.as(Bool)
-    #   end
-
-    #   def as_b? : Bool?
-    #     as_b if @value.is_a?(Bool)
-    #   end
-
-    #   def as_i : Int
-    #     @value.as(Int)
-    #   end
-
-    #   def as_i? : Int?
-    #     as_i if @value.is_a?(Int)
-    #   end
-
-    #   def as_s : String
-    #     @value.as(String)
-    #   end
-
-    #   def as_s? : String?
-    #     as_s if @value.is_a?(String)
-    #   end
-
-    #   def as_h : HashType
-    #     @value.as(Hash)
-    #   end
-
-    #   def as_h? : HashType?
-    #     as_h if @value.is_a?(Hash)
-    #   end
-
-    #   def as_a : ArrayType
-    #     @value.as(Array)
-    #   end
-
-    #   def as_a? : ArrayType?
-    #     as_a if @value.is_a?(Array)
-    #   end
-
-    #   def as_bytes : Bytes
-    #     @value.as(Bytes)
-    #   end
-
-    #   def as_bytes? : Bytes?
-    #     as_bytes if @value.is_a?(Bytes)
-    #   end
-
-    #   def as_callback : SubscribeCallbackType
-    #     @value.as(SubscribeCallbackType)
-    #   end
-
-    #   def as_callback? : SubscribeCallbackType?
-    #     as_callback if @value.is_a?(SubscribeCallbackType)
-    #   end
-
-    #   def to_json(json : JSON::Builder) : Nil
-    #     v = @value
-    #     raise "unsupported json value: #{v}" if v.is_a?(Bytes)
-    #     raise "unsupported json value: #{v}" if v.is_a?(SubscribeCallbackType)
-    #     v.to_json(json)
-    #   end
-
-    #   def to_i32 : Int32
-    #     return as_s.to_i32 if @value.is_a?(String)
-    #     return as_i.to_i32
-    #   end
-
-    #   def to_u32 : UInt32
-    #     return as_s.to_u32 if @value.is_a?(String)
-    #     return as_i.to_u32
-    #   end
-
-    #   def to_i64 : Int64
-    #     return as_s.to_i64 if @value.is_a?(String)
-    #     return as_i.to_i64
-    #   end
-
-    #   def to_u64 : UInt64
-    #     return as_s.to_u64 if @value.is_a?(String)
-    #     return as_i.to_u64
-    #   end
-
-    #   def inspect(io : IO) : Nil
-    #     @value.inspect(io)
-    #   end
-
-    #   def to_s(io : IO) : Nil
-    #     @value.to_s(io)
-    #   end
-
-    #   def initialize(@value)
-    #   end
-
-    #   def self.new(value : ValueType) : self
-    #     instance = allocate
-    #     instance.initialize(value)
-    #     instance
-    #   end
-
-    #   def self.new(value) : self
-    #     case value
-    #     when Hash, NamedTuple
-    #       return new(Hash(String, self).new.tap { |result| value.each { |k, v| result[k.to_s] = new(v) unless v.nil? } })
-    #     when Array, Tuple
-    #       return new(Array(self).new.tap { |result| value.each { |v| result << new(v) unless v.nil? } })
-    #     when Raw
-    #       return value
-    #     when JSON::Any
-    #       # All possible JSON types.
-    #       # alias Type = Nil | Bool | Int64 | Float64 | String | Array(Any) | Hash(String, Any)
-    #       case v = value.raw
-    #       when Bool
-    #         return new(v.as(Bool))
-    #       when Int
-    #         return new(v.as(Int).to_i64)
-    #       when Float
-    #         return new(v.as(Float64))
-    #       when String
-    #         return new(v.as(String))
-    #       when Array
-    #         return new(v.as(Array))
-    #       when Hash
-    #         return new(v.as(Hash))
-    #       else
-    #         raise "Invalid JSON::Any value `#{v}`"
-    #       end
-    #     when PrimitiveType
-    #       return new(value)
-    #     else
-    #       raise "Unsupported type: #{typeof(value)} value: #{value}"
-    #     end
-    #   end
-    # end
-
-    # # :nodoc:
-    # struct Field
-    #   getter symbol : Symbol
-    #   getter type : FieldType
-    #   getter name : String
-
-    #   def self.[](symbol : Symbol, type : FieldType)
-    #     return Field.new(symbol, type)
-    #   end
-
-    #   def initialize(@symbol : Symbol, @type : FieldType)
-    #     @name = @symbol.to_s
-    #   end
-
-    #   def inspect(io : IO) : Nil
-    #     # {name : type}
-    #     io << "{"
-    #     io << @name
-    #     io << " : "
-    #     io << @type
-    #     io << "}"
-    #   end
-    # end
 
     # :nodoc:
     struct Arguments
@@ -328,7 +155,7 @@ module Graphene
         field_count = 0
 
         {% for ivar in @type.instance_vars %}
-          if @{{ ivar.id }}.as(Tm_optional).value
+          if @{{ ivar.id }}.as(Tm_optional).is_valid?
             field_count += 1
           end
         {% end %}
@@ -340,9 +167,10 @@ module Graphene
         if field_count > 0
           {% for ivar, idx in @type.instance_vars %}
             # => Tm_optional 类型有值才写入，无值不写入。不用写 flags 标记。
-            if exist_value = @{{ ivar.id }}.as(Tm_optional).value
+            optional_value = @{{ ivar.id }}.as(Tm_optional)
+            if optional_value.is_valid?
               io.write_varint32({{ idx }})
-              exist_value.pack(io, args)
+              optional_value.value.not_nil!.pack(io, args)
             end
           {% end %}
         end
@@ -355,7 +183,7 @@ module Graphene
         {% begin %}
           {% all_ivars = @type.instance_vars %}
           raise "Too many fields" if len > {{ all_ivars.size }}
-          
+
           # => 循环读取有值的字段
           len.times do 
             idx = io.read_varint32
@@ -383,9 +211,44 @@ module Graphene
       end
     end # => Extension
 
+    struct Tm_protocol_id_type(ReqObjectType)
+      @instance : Int32
+
+      def to_s : String
+        "1.#{ReqObjectType.value}.#{@instance}"
+      end
+
+      def initialize(@instance)
+      end
+
+      def initialize(oid : String)
+        # => convert 1.2.n into just n
+        if /^[\d]+\.([\d]+)\.([\d]+)$/ =~ oid
+          found_object_type = $1.to_i8
+          raise "Invalid object id, object type is: #{BitShares::Blockchain::ObjectType.new(found_object_type)}, required: #{ReqObjectType}." if found_object_type != ReqObjectType.value
+          @instance = $2.to_i
+        else
+          raise "Invalid object id: #{oid}"
+        end
+      end
+
+      def pack(io, args : Graphene::Serialize::Arguments)
+        io.write_varint32(@instance)
+      end
+
+      def self.unpack(io, args : Graphene::Serialize::Arguments) : self
+        return new(io.read_varint32)
+      end
+    end
+
     # :nodoc:
     struct Tm_optional(T)
       property value : T?
+
+      # 是否有效判断 REMARK: 不直接用 value 判断，那样对于 false 的值会判断错误。e.g.: Tm_optional(bool) 值为 false 时候 if value 会误认为字段不存在。
+      def is_valid?
+        return @value != nil
+      end
 
       def initialize(@value : T? = nil)
       end
@@ -479,6 +342,137 @@ module Graphene
       end
     end # => end Tm_static_variant
 
+    struct Tm_map(KeyT, ValueT)
+      getter value = Hash(KeyT, ValueT).new
+
+      def initialize
+      end
+
+      def pack(io, args : Graphene::Serialize::Arguments)
+        io.write_varint32(@value.size)
+        # => TODO:sort
+        @value.to_a.each do |tuple|
+          tuple[0].pack(io, args)
+          tuple[1].pack(io, args)
+        end
+      end
+
+      def self.unpack(io, args : Graphene::Serialize::Arguments) : self
+        result = new
+
+        len = io.read_varint32
+        len.times do
+          result.value[KeyT.unpack(io, args)] = ValueT.unpack(io, args)
+        end
+
+        return result
+      end
+    end
+  end
+
+  module Type
+    alias T_share_type = Int64
+
+    # => TODO:u32 or u64
+    struct T_varint32
+      include Graphene::Serialize::Pack(self)
+
+      getter value : UInt32
+
+      def initialize(@value)
+      end
+
+      def pack(io, args : Graphene::Serialize::Arguments)
+        io.write_bytes(@value)
+      end
+
+      def self.unpack(io, args : Graphene::Serialize::Arguments) : self
+        return new(io.read_varint32.to_u32)
+      end
+    end
+
+    struct T_void
+      include Graphene::Serialize::Pack(self)
+
+      def pack(io, args : Graphene::Serialize::Arguments)
+      end
+
+      def self.unpack(io, args : Graphene::Serialize::Arguments) : self
+        return new
+      end
+    end
+
+    alias T_future_extensions = T_void
+
+    struct T_vote_id
+      include Graphene::Serialize::Pack(self)
+
+      @instance : UInt32
+
+      def to_s : String
+        id = (@instance & 0xffffff00) >> 8
+        type = @instance & 0xff
+        return "#{type}:#{id}"
+      end
+
+      def initialize(@instance : UInt32)
+      end
+
+      def initialize(value : String)
+        if /^[0-9]+:[0-9]+$/ =~ value
+          type, id = value.split(":").map &.to_i
+          @instance = ((id << 8) | type).to_u32
+        else
+          raise "Invalid vote id: #{value}"
+        end
+      end
+
+      def pack(io, args : Graphene::Serialize::Arguments)
+        io.write_bytes(@instance)
+      end
+
+      def self.unpack(io, args : Graphene::Serialize::Arguments) : self
+        return new(io.read_bytes(UInt32))
+      end
+    end
+
+    struct T_time_point_sec
+      include Graphene::Serialize::Pack(self)
+
+      getter value : UInt32
+
+      def to_s : String
+        # => 格式：2018-06-04T13:03:57
+        return Time.unix(@value.to_i64).to_utc.to_s("%Y-%m-%dT%H:%M:%S")
+      end
+
+      def initialize(@value : UInt32)
+      end
+
+      def initialize(value : String)
+        @value = BitShares::Utility.parse_time_string_i64(value).to_u32
+      end
+
+      def pack(io, args : Graphene::Serialize::Arguments)
+        @value.pack(io, args)
+      end
+
+      def self.unpack(io, args : Graphene::Serialize::Arguments) : self
+        return new(UInt32.unpack(io, args))
+      end
+    end
+  end
+end
+
+struct Bool
+  include Graphene::Serialize::Pack(self)
+
+  def pack(io, args : Graphene::Serialize::Arguments)
+    io.write_byte(self ? 1_u8 : 0_u8)
+  end
+
+  def self.unpack(io, args : Graphene::Serialize::Arguments) : self
+    io.read_byte.not_nil! != 0
   end
 end
 
@@ -513,31 +507,131 @@ end
 
 {% end %}
 
-alias T_share_type = Int64
-
-# => TODO:u32 or u64
-struct T_varint32
-  getter value : UInt32
-
-  def initialize(@value)
-  end
+class String
+  include Graphene::Serialize::Pack(self)
 
   def pack(io, args : Graphene::Serialize::Arguments)
-    io.write_bytes(@value)
+    io.write_varint32(self.bytesize)
+    io.write(self.to_slice)
   end
 
   def self.unpack(io, args : Graphene::Serialize::Arguments) : self
-    return T_varint32.new(io.read_varint32.to_u32)
+    io.read_string(io.read_varint32)
+  end
+end
+
+class Array(T)
+  include Graphene::Serialize::Pack(self)
+
+  def pack(io, args : Graphene::Serialize::Arguments)
+    io.write_varint32(self.size)
+    each(&.pack(io, args))
+  end
+
+  def self.unpack(io, args : Graphene::Serialize::Arguments) : self
+    return new(io.read_varint32) { T.unpack(io, args) }
+  end
+end
+
+struct Set(T)
+  include Graphene::Serialize::Pack(self)
+
+  def pack(io, args : Graphene::Serialize::Arguments)
+    # => TODO:sort
+    io.write_varint32(self.size)
+    each(&.pack(io, args))
+  end
+
+  def self.unpack(io, args : Graphene::Serialize::Arguments) : self
+    len = io.read_varint32
+
+    result = new(len)
+
+    len.times { result.add(T.unpack(io, args)) }
+
+    return result
+  end
+end
+
+# => aka Bytes
+struct Slice(T)
+  include Graphene::Serialize::Pack(self)
+
+  def pack(io, args : Graphene::Serialize::Arguments)
+    {% if T == UInt8 %}
+      io.write_varint32(self.size)
+      io.write(self)
+    {% else %}
+      raise "unsupported type."
+    {% end %}
+  end
+
+  def self.unpack(io, args : Graphene::Serialize::Arguments) : self
+    {% if T == UInt8 %}
+      slice = Bytes.new(io.read_varint32)
+      io.read(slice)
+      return slice
+    {% else %}
+      raise "unsupported type."
+    {% end %}
+  end
+end
+
+struct FixedBytes(Size)
+  getter value : StaticArray(UInt8, Size)
+
+  def initialize(bytes : Bytes)
+    raise "size error." if bytes.size != Size
+    @value = StaticArray(UInt8, Size).new { |i| bytes[i] }
+  end
+
+  def pack(io, args : Graphene::Serialize::Arguments)
+    io.write(@value.to_slice)
+  end
+
+  def self.unpack(io, args : Graphene::Serialize::Arguments) : self
+    target = uninitialized self
+
+    io.read(target.value.to_slice)
+
+    return target
+  end
+end
+
+class Secp256k1Zkp::PublicKey
+  include Graphene::Serialize::Pack(self)
+
+  def pack(io, args : Graphene::Serialize::Arguments)
+    io.write(self.bytes)
+  end
+
+  def self.unpack(io, args : Graphene::Serialize::Arguments) : self
+    return new(io.read_n_bytes(33))
+  end
+end
+
+class Secp256k1Zkp::Address
+  include Graphene::Serialize::Pack(self)
+
+  def pack(io, args : Graphene::Serialize::Arguments)
+    raise "not supported"
+  end
+
+  def self.unpack(io, args : Graphene::Serialize::Arguments) : self
+    raise "not supported"
   end
 end
 
 include Graphene::Serialize
 
-abstract struct Asset
+struct Asset
   include Composite(self)
 
-  property amount : Int64
-  property asset_id : Int64
+  property amount : Int64 = 77
+  property asset_id : String = "1.3.113"
+  property account_ids = ["1.2.0", "1.3.5"]
+  property message : Bytes = Bytes[1, 2, 3, 4]
+  property fixed = FixedBytes(5).new(Bytes[2, 2, 3, 4, 5])
 
   property test1 = Tm_optional(Int64).new(3)
   property test2 = Tm_optional(Int64).new
@@ -554,11 +648,11 @@ struct ExtTest
   include Extension(self)
 
   property amount = Tm_optional(Int64).new(33)
-  property oamount = Tm_optional(UInt8).new
-  property iamount = Tm_optional(Int64).new
+  property oamount = Tm_optional(Bool).new(false)
+  property iamount = Tm_optional(String).new("abcd")
 end
 
-abstract struct Asset02 < Asset
+struct Asset02
   include Composite(self)
 
   # property value1 = Tm_static_variant(Asset, Int64).new(Asset.new(33_i64, 5i64))
@@ -566,20 +660,21 @@ abstract struct Asset02 < Asset
   property value3 = 119_i64
 
   def initialize
-    super(11_i64, 22_i64)
+    # super(11_i64, "1.3.0")
   end
 end
 
-struct Asset03 < Asset02
+struct Asset03
   include Composite(self)
   property value4 = 177_i64
 end
 
-# obj = Asset02.new
-# pp obj
+obj = Asset.new(77_i64, "1.3.113")
+pp obj
 # puts "----"
 # # exit
-obj = ExtTest.new
+# obj = ExtTest.new
+# obj.oamount.value = true
 # obj = Asset03.new # (33_i64, 130_i64)
 # # # pp obj
 # data = obj.pack
@@ -594,7 +689,7 @@ obj = ExtTest.new
 data = obj.pack
 # pp data # .size
 begin
-  pp Pack(ExtTest).unpack(data)
+  pp Pack(Asset).unpack(data)
 rescue
   pp "err"
 end
