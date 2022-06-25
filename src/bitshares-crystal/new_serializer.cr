@@ -207,6 +207,9 @@ module Graphene
     struct Tm_protocol_id_type(ReqObjectType)
       private RegProtocalIdFormat = /^[\d]+\.([\d]+)\.([\d]+)$/
 
+      include Comparable(self)                # => 支持比较运算，需要实现 <=> 方法。
+      include Graphene::Serialize::Pack(self) # => 支持石墨烯序列化
+
       getter instance : UInt64
 
       # REMARK: 这里存在一个语言BUG
@@ -243,6 +246,11 @@ module Graphene
 
       def self.unpack(io) : self
         return new(io.read_varint32)
+      end
+
+      # => 实现比较运算。
+      def <=>(other)
+        return @instance <=> other.instance
       end
     end
 
@@ -341,22 +349,26 @@ module Graphene
       #   return Raw.new([Raw.new(type_id), optype.to_object(opdata.last).not_nil!])
       # end
 
-      # 该类型不需要排序
-      def nosort
-        true # => TODO:ing sort 待处理
-      end
     end # => end Tm_static_variant
 
+    # :nodoc:
+    #
+    #  [{Key1, Value1}, {Key2, Value2}, ...]
     struct Tm_map(KeyT, ValueT)
-      getter value = Hash(KeyT, ValueT).new
+      @flat_list = Array(Tuple(KeyT, ValueT)).new
 
-      def initialize
+      def add(item : Tuple(KeyT, ValueT))
+        @flat_list << item
+      end
+
+      def each(&blk : Tuple(KeyT, ValueT) -> _)
+        @flat_list.each(&blk)
       end
 
       def pack(io)
-        io.write_varint32(@value.size)
-        # => TODO:sort
-        @value.to_a.each do |tuple|
+        io.write_varint32(@flat_list.size)
+
+        sort_data.each do |tuple|
           tuple[0].pack(io)
           tuple[1].pack(io)
         end
@@ -367,10 +379,17 @@ module Graphene
 
         len = io.read_varint32
         len.times do
-          result.value[KeyT.unpack(io)] = ValueT.unpack(io)
+          result.add({KeyT.unpack(io), ValueT.unpack(io)})
         end
 
         return result
+      end
+
+      def sort_data
+        # => TODO: nosort
+        # => TODO: sort by
+        return @flat_list if @flat_list.size <= 1
+        return @flat_list.sort { |a, b| a[0] <=> b[0] }
       end
     end
 
@@ -390,9 +409,7 @@ module Graphene
         return new
       end
     end
-  end
 
-  module Type
     alias T_share_type = Int64
 
     # => TODO:u32 or u64
@@ -429,35 +446,47 @@ module Graphene
     struct T_vote_id
       private RegVoteIdFormat = /^([0-9]+):([0-9]+)$/
 
-      include Graphene::Serialize::Pack(self)
+      include Comparable(self)                # => 支持比较运算，需要实现 <=> 方法。
+      include Graphene::Serialize::Pack(self) # => 支持石墨烯序列化。
 
-      @instance : UInt32
+      @content : UInt32 = 0 # => 低 8 位是 vote type，高 24 位是 instance id。
 
-      def to_s : String
-        id = (@instance & 0xffffff00) >> 8
-        type = @instance & 0xff
-        return "#{type}:#{id}"
+      def vote_type : UInt8
+        @content & 0xff
       end
 
-      def initialize(@instance : UInt32)
+      def vote_instance_id : UInt32
+        @content >> 8
+      end
+
+      def to_s : String
+        return "#{vote_type}:#{vote_instance_id}"
+      end
+
+      def initialize(@content : UInt32)
       end
 
       def initialize(value : String)
         if RegVoteIdFormat =~ value
-          type = $1.to_i
-          id = $2.to_i
-          @instance = ((id << 8) | type).to_u32
+          type = $1.to_u8
+          instance_id = $2.to_u32
+          @content = (instance_id << 8) | type
         else
           raise "Invalid vote id: #{value}"
         end
       end
 
       def pack(io)
-        io.write_bytes(@instance)
+        io.write_bytes(@content)
       end
 
       def self.unpack(io) : self
         return new(io.read_bytes(UInt32))
+      end
+
+      # => 实现比较运算。
+      def <=>(other)
+        return vote_instance_id <=> other.vote_instance_id
       end
     end
 
@@ -558,13 +587,13 @@ class Array(T)
   end
 end
 
+# => TODO:考虑别打实现
 struct Set(T)
   include Graphene::Serialize::Pack(self)
 
   def pack(io)
-    # => TODO:sort
     io.write_varint32(self.size)
-    each(&.pack(io))
+    sort_data.each(&.pack(io))
   end
 
   def self.unpack(io) : self
@@ -575,6 +604,13 @@ struct Set(T)
     len.times { result.add(T.unpack(io)) }
 
     return result
+  end
+
+  def sort_data
+    # => TODO: nosort
+    # => TODO: sort by
+    return self if self.size <= 1
+    return self.to_a.sort { |a, b| a <=> b }
   end
 end
 
@@ -624,7 +660,8 @@ struct FixedBytes(Size)
 end
 
 class Secp256k1Zkp::PublicKey
-  include Graphene::Serialize::Pack(self)
+  include Comparable(self)                # => 支持比较运算，需要实现 <=> 方法。
+  include Graphene::Serialize::Pack(self) # => 支持石墨烯序列化
 
   def pack(io)
     io.write(self.bytes)
@@ -632,6 +669,11 @@ class Secp256k1Zkp::PublicKey
 
   def self.unpack(io) : self
     return new(io.read_n_bytes(33))
+  end
+
+  # => 实现比较运算。
+  def <=>(other)
+    return self.to_address.bytes <=> other.to_address.bytes
   end
 end
 
@@ -650,8 +692,7 @@ end
 module Graphene
   # 石墨烯支持的各种操作对象结构定义。
   module Operations
-    include Serialize
-    include Type
+    include Graphene::Serialize
     include BitShares::Blockchain
 
     struct T_Test
