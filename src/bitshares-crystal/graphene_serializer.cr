@@ -625,21 +625,44 @@ struct Slice(T)
 end
 
 struct FixedBytes(Size)
-  getter value : StaticArray(UInt8, Size)
+  include Graphene::Serialize::Pack(self)
+
+  getter value : Bytes
 
   def initialize(bytes : Bytes)
     raise "size error." if bytes.size != Size
-    @value = StaticArray(UInt8, Size).new { |i| bytes[i] }
+    @value = bytes
   end
 
   def pack(io)
-    io.write(@value.to_slice)
+    io.write(@value)
+  end
+
+  def self.unpack(io) : self
+    slice = Bytes.new(Size.as?(Int32).not_nil!)
+    io.read(slice)
+    return new(slice)
+  end
+end
+
+struct StaticFixedBytes(Size)
+  include Graphene::Serialize::Pack(self)
+
+  getter unsafe_value : StaticArray(UInt8, Size)
+
+  def initialize(bytes : Bytes)
+    raise "size error." if bytes.size != Size
+    @unsafe_value = StaticArray(UInt8, Size).new { |i| bytes[i] }
+  end
+
+  def pack(io)
+    io.write(@unsafe_value.to_slice)
   end
 
   def self.unpack(io) : self
     target = uninitialized self
 
-    io.read(target.value.to_slice)
+    io.read(target.unsafe_value.to_slice)
 
     return target
   end
