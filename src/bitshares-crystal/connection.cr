@@ -369,6 +369,10 @@ module BitShares
       call("asset", method, params)
     end
 
+    def batch_call_api(*args)
+      return safe_get_websocket.multi_call(*args)
+    end
+
     getter config : BitShares::Config
 
     @api_nodes : Array(String)
