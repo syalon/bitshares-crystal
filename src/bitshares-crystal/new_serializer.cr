@@ -97,26 +97,18 @@ module Graphene
         return String.new(read_n_bytes(size))
       end
 
-      # def w_object_id(io, args, value, object_type_symbol)
+      # def w_object_id(io, value, object_type_symbol)
       # end
     end
 
     # :nodoc:
-    struct Arguments
-      getter graphene_address_prefix : String
-
-      def initialize(@graphene_address_prefix : String)
-      end
-    end
-
-    # :nodoc:
     module Pack(T)
-      def pack(graphene_address_prefix : String = "")
-        BinaryIO.new.tap { |io| pack(io, Arguments.new(graphene_address_prefix)) }.to_slice
+      def pack
+        BinaryIO.new.tap { |io| pack(io) }.to_slice
       end
 
-      def self.unpack(data : Bytes, graphene_address_prefix : String = "")
-        return T.unpack(BinaryIO.new(data), Arguments.new(graphene_address_prefix))
+      def self.unpack(data : Bytes)
+        return T.unpack(BinaryIO.new(data))
       end
     end
 
@@ -124,23 +116,23 @@ module Graphene
     module Composite(T)
       include Pack(T)
 
-      def pack(io, args : Arguments)
+      def pack(io)
         {% for ivar in @type.instance_vars %}
-          @{{ ivar.id }}.pack(io, args)
+          @{{ ivar.id }}.pack(io)
         {% end %}
       end
 
-      def __unpack_all_instance_vars(io, args : Arguments)
+      def __unpack_all_instance_vars(io)
         {% for ivar in @type.instance_vars %}
-          @{{ ivar.id }} = {{ ivar.type.id }}.unpack(io, args)
+          @{{ ivar.id }} = {{ ivar.type.id }}.unpack(io)
         {% end %}
       end
 
       macro included
 
-        def self.unpack(io, args : Graphene::Serialize::Arguments) : self
+        def self.unpack(io) : self
           target = uninitialized T
-          target.__unpack_all_instance_vars(io, args)
+          target.__unpack_all_instance_vars(io)
           return target
         end
 
@@ -151,7 +143,7 @@ module Graphene
     module Extension(T)
       include Pack(T)
 
-      def pack(io, args : Arguments)
+      def pack(io)
         # => 统计出现的扩展字段数量
         field_count = 0
 
@@ -171,13 +163,13 @@ module Graphene
             optional_value = @{{ ivar.id }}.as(Tm_optional)
             if optional_value.is_valid?
               io.write_varint32({{ idx }})
-              optional_value.value.not_nil!.pack(io, args)
+              optional_value.value.not_nil!.pack(io)
             end
           {% end %}
         end
       end
 
-      def __unpack_all_instance_vars(io, args : Arguments)
+      def __unpack_all_instance_vars(io)
         len = io.read_varint32
         return if len <= 0
 
@@ -193,7 +185,7 @@ module Graphene
             case idx
             {% for i in 0...all_ivars.size %}
               when {{i}}
-                @{{ all_ivars[i].id }}.value = typeof(@{{ all_ivars[i].id }}.value.not_nil!).unpack(io, args)
+                @{{ all_ivars[i].id }}.value = typeof(@{{ all_ivars[i].id }}.value.not_nil!).unpack(io)
             {% end %}
             end
             
@@ -203,9 +195,9 @@ module Graphene
 
       macro included
 
-        def self.unpack(io, args : Graphene::Serialize::Arguments) : self
+        def self.unpack(io) : self
           target = T.new
-          target.__unpack_all_instance_vars(io, args)
+          target.__unpack_all_instance_vars(io)
           return target
         end
 
@@ -213,6 +205,8 @@ module Graphene
     end # => Extension
 
     struct Tm_protocol_id_type(ReqObjectType)
+      private RegProtocalIdFormat = /^[\d]+\.([\d]+)\.([\d]+)$/
+
       getter instance : UInt64
 
       # REMARK: 这里存在一个语言BUG
@@ -234,7 +228,7 @@ module Graphene
 
       def initialize(oid : String)
         # => convert 1.2.n into just n
-        if /^[\d]+\.([\d]+)\.([\d]+)$/ =~ oid
+        if RegProtocalIdFormat =~ oid
           found_object_type = $1.to_i8
           raise "Invalid object id, object type is: #{BitShares::Blockchain::ObjectType.new(found_object_type)}, required: #{__generics_type_helper}." if found_object_type != __generics_type_helper.value
           @instance = $2.to_u64
@@ -243,11 +237,11 @@ module Graphene
         end
       end
 
-      def pack(io, args : Graphene::Serialize::Arguments)
+      def pack(io)
         io.write_varint32(@instance.to_u32)
       end
 
-      def self.unpack(io, args : Graphene::Serialize::Arguments) : self
+      def self.unpack(io) : self
         return new(io.read_varint32)
       end
     end
@@ -264,20 +258,20 @@ module Graphene
       def initialize(@value : T? = nil)
       end
 
-      def pack(io, args : Graphene::Serialize::Arguments)
+      def pack(io)
         if v = @value
           io.write_byte(1_u8)
-          v.pack(io, args)
+          v.pack(io)
         else
           io.write_byte(0_u8)
         end
       end
 
-      def self.unpack(io, args : Graphene::Serialize::Arguments) : self
+      def self.unpack(io) : self
         value = if io.read_byte.not_nil! == 0
                   nil
                 else
-                  T.unpack(io, args)
+                  T.unpack(io)
                 end
         return new(value)
       end
@@ -311,7 +305,7 @@ module Graphene
         return nil
       end
 
-      def pack(io, args : Graphene::Serialize::Arguments)
+      def pack(io)
         # => 1、write index
         io.write_varint32(@index)
 
@@ -320,7 +314,7 @@ module Graphene
           case @value
           {% for i in 0...T.size %}
             when T[{{i}}]
-              T[{{i}}].cast(@value).pack(io, args)
+              T[{{i}}].cast(@value).pack(io)
           {% end %}
           else
             raise "unknown type"
@@ -328,15 +322,15 @@ module Graphene
         {% end %}
       end
 
-      def self.unpack(io, args : Graphene::Serialize::Arguments) : self
+      def self.unpack(io) : self
         index = io.read_varint32
         optype = index_to_optype(index)
         raise "invalid type id: #{index}" if optype.nil?
 
-        return new(optype.unpack(io, args))
+        return new(optype.unpack(io))
       end
 
-      # def self.to_object(args : Arguments, opdata : Raw?) : Raw?
+      # def self.to_object(opdata : Raw?) : Raw?
       #   opdata = opdata.not_nil!.as_a
       #   assert(opdata.size == 2)
       #   type_id = opdata[0].as_i.to_i32
@@ -344,7 +338,7 @@ module Graphene
       #   optype = type_id_to_optype(type_id)
       #   raise "invalid type id: #{type_id}" if optype.nil?
 
-      #   return Raw.new([Raw.new(type_id), optype.to_object(args, opdata.last).not_nil!])
+      #   return Raw.new([Raw.new(type_id), optype.to_object(opdata.last).not_nil!])
       # end
 
       # 该类型不需要排序
@@ -359,24 +353,41 @@ module Graphene
       def initialize
       end
 
-      def pack(io, args : Graphene::Serialize::Arguments)
+      def pack(io)
         io.write_varint32(@value.size)
         # => TODO:sort
         @value.to_a.each do |tuple|
-          tuple[0].pack(io, args)
-          tuple[1].pack(io, args)
+          tuple[0].pack(io)
+          tuple[1].pack(io)
         end
       end
 
-      def self.unpack(io, args : Graphene::Serialize::Arguments) : self
+      def self.unpack(io) : self
         result = new
 
         len = io.read_varint32
         len.times do
-          result.value[KeyT.unpack(io, args)] = ValueT.unpack(io, args)
+          result.value[KeyT.unpack(io)] = ValueT.unpack(io)
         end
 
         return result
+      end
+    end
+
+    # 空集合，用于代替 Set(T_future_extensions) 类型，提高效率。避免 Set 分配堆内存。
+    struct Tm_empty_set(T)
+      include Graphene::Serialize::Pack(self)
+
+      def pack(io)
+        io.write_varint32(0)
+      end
+
+      def self.unpack(io) : self
+        len = io.read_varint32
+
+        raise "Empty set size must be zero." if len != 0
+
+        return new
       end
     end
   end
@@ -393,11 +404,11 @@ module Graphene
       def initialize(@value)
       end
 
-      def pack(io, args : Graphene::Serialize::Arguments)
+      def pack(io)
         io.write_bytes(@value)
       end
 
-      def self.unpack(io, args : Graphene::Serialize::Arguments) : self
+      def self.unpack(io) : self
         return new(io.read_varint32.to_u32)
       end
     end
@@ -405,10 +416,10 @@ module Graphene
     struct T_void
       include Graphene::Serialize::Pack(self)
 
-      def pack(io, args : Graphene::Serialize::Arguments)
+      def pack(io)
       end
 
-      def self.unpack(io, args : Graphene::Serialize::Arguments) : self
+      def self.unpack(io) : self
         return new
       end
     end
@@ -416,6 +427,8 @@ module Graphene
     alias T_future_extensions = T_void
 
     struct T_vote_id
+      private RegVoteIdFormat = /^([0-9]+):([0-9]+)$/
+
       include Graphene::Serialize::Pack(self)
 
       @instance : UInt32
@@ -430,19 +443,20 @@ module Graphene
       end
 
       def initialize(value : String)
-        if /^[0-9]+:[0-9]+$/ =~ value
-          type, id = value.split(":").map &.to_i
+        if RegVoteIdFormat =~ value
+          type = $1.to_i
+          id = $2.to_i
           @instance = ((id << 8) | type).to_u32
         else
           raise "Invalid vote id: #{value}"
         end
       end
 
-      def pack(io, args : Graphene::Serialize::Arguments)
+      def pack(io)
         io.write_bytes(@instance)
       end
 
-      def self.unpack(io, args : Graphene::Serialize::Arguments) : self
+      def self.unpack(io) : self
         return new(io.read_bytes(UInt32))
       end
     end
@@ -464,12 +478,12 @@ module Graphene
         @value = BitShares::Utility.parse_time_string_i64(value).to_u32
       end
 
-      def pack(io, args : Graphene::Serialize::Arguments)
-        @value.pack(io, args)
+      def pack(io)
+        @value.pack(io)
       end
 
-      def self.unpack(io, args : Graphene::Serialize::Arguments) : self
-        return new(UInt32.unpack(io, args))
+      def self.unpack(io) : self
+        return new(UInt32.unpack(io))
       end
     end
   end
@@ -478,11 +492,11 @@ end
 struct Bool
   include Graphene::Serialize::Pack(self)
 
-  def pack(io, args : Graphene::Serialize::Arguments)
+  def pack(io)
     io.write_byte(self ? 1_u8 : 0_u8)
   end
 
-  def self.unpack(io, args : Graphene::Serialize::Arguments) : self
+  def self.unpack(io) : self
     io.read_byte.not_nil! != 0
   end
 end
@@ -490,11 +504,11 @@ end
 struct UInt8
   include Graphene::Serialize::Pack(self)
 
-  def pack(io, args : Graphene::Serialize::Arguments)
+  def pack(io)
     io.write_byte(self)
   end
 
-  def self.unpack(io, args : Graphene::Serialize::Arguments) : self
+  def self.unpack(io) : self
     io.read_byte.not_nil!
   end
 end
@@ -506,11 +520,11 @@ end
 
       include Graphene::Serialize::Pack(self)
 
-      def pack(io, args : Graphene::Serialize::Arguments)
+      def pack(io)
         io.write_bytes(self)
       end
 
-      def self.unpack(io, args : Graphene::Serialize::Arguments) : self
+      def self.unpack(io) : self
         io.read_bytes({{int.id}})
       end
     end
@@ -521,12 +535,12 @@ end
 class String
   include Graphene::Serialize::Pack(self)
 
-  def pack(io, args : Graphene::Serialize::Arguments)
+  def pack(io)
     io.write_varint32(self.bytesize)
     io.write(self.to_slice)
   end
 
-  def self.unpack(io, args : Graphene::Serialize::Arguments) : self
+  def self.unpack(io) : self
     io.read_string(io.read_varint32)
   end
 end
@@ -534,31 +548,31 @@ end
 class Array(T)
   include Graphene::Serialize::Pack(self)
 
-  def pack(io, args : Graphene::Serialize::Arguments)
+  def pack(io)
     io.write_varint32(self.size)
-    each(&.pack(io, args))
+    each(&.pack(io))
   end
 
-  def self.unpack(io, args : Graphene::Serialize::Arguments) : self
-    return new(io.read_varint32) { T.unpack(io, args) }
+  def self.unpack(io) : self
+    return new(io.read_varint32) { T.unpack(io) }
   end
 end
 
 struct Set(T)
   include Graphene::Serialize::Pack(self)
 
-  def pack(io, args : Graphene::Serialize::Arguments)
+  def pack(io)
     # => TODO:sort
     io.write_varint32(self.size)
-    each(&.pack(io, args))
+    each(&.pack(io))
   end
 
-  def self.unpack(io, args : Graphene::Serialize::Arguments) : self
+  def self.unpack(io) : self
     len = io.read_varint32
 
     result = new(len)
 
-    len.times { result.add(T.unpack(io, args)) }
+    len.times { result.add(T.unpack(io)) }
 
     return result
   end
@@ -568,7 +582,7 @@ end
 struct Slice(T)
   include Graphene::Serialize::Pack(self)
 
-  def pack(io, args : Graphene::Serialize::Arguments)
+  def pack(io)
     {% if T == UInt8 %}
       io.write_varint32(self.size)
       io.write(self)
@@ -577,7 +591,7 @@ struct Slice(T)
     {% end %}
   end
 
-  def self.unpack(io, args : Graphene::Serialize::Arguments) : self
+  def self.unpack(io) : self
     {% if T == UInt8 %}
       slice = Bytes.new(io.read_varint32)
       io.read(slice)
@@ -596,11 +610,11 @@ struct FixedBytes(Size)
     @value = StaticArray(UInt8, Size).new { |i| bytes[i] }
   end
 
-  def pack(io, args : Graphene::Serialize::Arguments)
+  def pack(io)
     io.write(@value.to_slice)
   end
 
-  def self.unpack(io, args : Graphene::Serialize::Arguments) : self
+  def self.unpack(io) : self
     target = uninitialized self
 
     io.read(target.value.to_slice)
@@ -612,11 +626,11 @@ end
 class Secp256k1Zkp::PublicKey
   include Graphene::Serialize::Pack(self)
 
-  def pack(io, args : Graphene::Serialize::Arguments)
+  def pack(io)
     io.write(self.bytes)
   end
 
-  def self.unpack(io, args : Graphene::Serialize::Arguments) : self
+  def self.unpack(io) : self
     return new(io.read_n_bytes(33))
   end
 end
@@ -624,11 +638,11 @@ end
 class Secp256k1Zkp::Address
   include Graphene::Serialize::Pack(self)
 
-  def pack(io, args : Graphene::Serialize::Arguments)
+  def pack(io)
     raise "not supported"
   end
 
-  def self.unpack(io, args : Graphene::Serialize::Arguments) : self
+  def self.unpack(io) : self
     raise "not supported"
   end
 end
@@ -650,41 +664,41 @@ module Graphene
       end
     end
 
-    class T_operation # < T_composite
-      def self.to_byte_buffer(io, args : Arguments, opdata : Raw?)
-        opdata = opdata.not_nil!.as_a
-        assert(opdata.size == 2)
+    # class T_operation # < T_composite
+    #   def self.to_byte_buffer(io, opdata : Raw?)
+    #     opdata = opdata.not_nil!.as_a
+    #     assert(opdata.size == 2)
 
-        opcode = opdata[0].as_i.to_i8
-        opdata = opdata[1]
+    #     opcode = opdata[0].as_i.to_i8
+    #     opdata = opdata[1]
 
-        optype = BitShares::Operations::Opcode2optype[opcode]
+    #     optype = BitShares::Operations::Opcode2optype[opcode]
 
-        # 1、write opcode    2、write opdata
-        io.write_varint32(opcode)
-        optype.to_byte_buffer(io, args, opdata)
-      end
+    #     # 1、write opcode    2、write opdata
+    #     io.write_varint32(opcode)
+    #     optype.to_byte_buffer(io, opdata)
+    #   end
 
-      def self.from_byte_buffer(io, args : Arguments)
-        opcode = io.read_varint32
-        optype = BitShares::Operations::Opcode2optype[opcode]
+    #   def self.from_byte_buffer(io)
+    #     opcode = io.read_varint32
+    #     optype = BitShares::Operations::Opcode2optype[opcode]
 
-        result = Raw::ArrayType.new
-        result << Raw.new(opcode)
-        result << Raw.new(optype.from_byte_buffer(io, args).not_nil!)
-        return result
-      end
+    #     result = Raw::ArrayType.new
+    #     result << Raw.new(opcode)
+    #     result << Raw.new(optype.from_byte_buffer(io).not_nil!)
+    #     return result
+    #   end
 
-      def self.to_object(args : Arguments, opdata : Raw?) : Raw?
-        opdata = opdata.not_nil!.as_a
-        assert(opdata.size == 2)
+    #   def self.to_object( : Arguments, opdata : Raw?) : Raw?
+    #     opdata = opdata.not_nil!.as_a
+    #     assert(opdata.size == 2)
 
-        opcode = opdata[0]
-        optype = BitShares::Operations::Opcode2optype[opcode.as_i.to_i8]
+    #     opcode = opdata[0]
+    #     optype = BitShares::Operations::Opcode2optype[opcode.as_i.to_i8]
 
-        return Raw.new([opcode, optype.to_object(args, opdata[1])])
-      end
-    end
+    #     return Raw.new([opcode, optype.to_object( opdata[1])])
+    #   end
+    # end
 
     #
     # 资产对象
@@ -732,7 +746,7 @@ module Graphene
       property to = Tm_protocol_id_type(ObjectType::Account).new
       property amount = T_asset.new
       property memo = Tm_optional(T_memo_data).new
-      # property extensions = Set(T_future_extensions).new # TODO:memory? 默认nil？大部分都睡空，不分配内存？
+      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     end
 
     # class OP_limit_order_create # < T_composite
@@ -742,14 +756,14 @@ module Graphene
     #   add_field :min_to_receive, T_asset
     #   add_field :expiration, T_time_point_sec
     #   add_field :fill_or_kill, T_bool
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # class OP_limit_order_cancel # < T_composite
     #   add_field :fee, T_asset
     #   add_field :fee_paying_account, Tm_protocol_id_type(ObjectType::Account)
     #   add_field :order, Tm_protocol_id_type(ObjectType::Limit_order)
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # class OP_call_order_update # < T_composite
@@ -779,7 +793,7 @@ module Graphene
     #   add_field :num_witness, T_uint16
     #   add_field :num_committee, T_uint16
     #   add_field :votes, Tm_set(T_vote_id)
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # class T_no_special_authority # < T_composite
@@ -838,21 +852,21 @@ module Graphene
     #   add_field :account_to_list, Tm_protocol_id_type(ObjectType::Account)
     #   add_field :new_listing, T_uint8
 
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # class OP_account_upgrade # < T_composite
     #   add_field :fee, T_asset
     #   add_field :account_to_upgrade, Tm_protocol_id_type(ObjectType::Account)
     #   add_field :upgrade_to_lifetime_member, T_bool
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # class OP_account_transfer # < T_composite
     #   add_field :fee, T_asset
     #   add_field :account_id, Tm_protocol_id_type(ObjectType::Account)
     #   add_field :new_owner, Tm_protocol_id_type(ObjectType::Account)
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # class T_asset_options # < T_composite
@@ -915,7 +929,7 @@ module Graphene
     #   add_field :common_options, T_asset_options
     #   add_field :bitasset_opts, Tm_optional(T_bitasset_options)
     #   add_field :is_prediction_market, T_bool
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # class OP_asset_update                          # < T_composite
@@ -937,7 +951,7 @@ module Graphene
     #   add_field :issuer, Tm_protocol_id_type(ObjectType::Account)
     #   add_field :asset_to_update, Tm_protocol_id_type(ObjectType::Asset)
     #   add_field :new_options, T_bitasset_options
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # class OP_asset_update_feed_producers # < T_composite
@@ -945,7 +959,7 @@ module Graphene
     #   add_field :issuer, Tm_protocol_id_type(ObjectType::Account)
     #   add_field :asset_to_update, Tm_protocol_id_type(ObjectType::Asset)
     #   add_field :new_feed_producers, Tm_set(Tm_protocol_id_type(ObjectType::Account))
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # class OP_asset_issue # < T_composite
@@ -954,14 +968,14 @@ module Graphene
     #   add_field :asset_to_issue, T_asset
     #   add_field :issue_to_account, Tm_protocol_id_type(ObjectType::Account)
     #   add_field :memo, Tm_optional(T_memo_data)
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # class OP_asset_reserve # < T_composite
     #   add_field :fee, T_asset
     #   add_field :payer, Tm_protocol_id_type(ObjectType::Account)
     #   add_field :amount_to_reserve, T_asset
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # class OP_asset_fund_fee_pool # < T_composite
@@ -969,14 +983,14 @@ module Graphene
     #   add_field :from_account, Tm_protocol_id_type(ObjectType::Account)
     #   add_field :asset_id, Tm_protocol_id_type(ObjectType::Asset)
     #   add_field :amount, T_share_type # only core asset
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # class OP_asset_settle # < T_composite
     #   add_field :fee, T_asset
     #   add_field :account, Tm_protocol_id_type(ObjectType::Account)
     #   add_field :amount, T_asset
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # class OP_asset_global_settle # < T_composite
@@ -984,7 +998,7 @@ module Graphene
     #   add_field :issuer, Tm_protocol_id_type(ObjectType::Account)
     #   add_field :asset_to_settle, Tm_protocol_id_type(ObjectType::Asset)
     #   add_field :settle_price, T_price
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # class OP_asset_publish_feed                       # < T_composite
@@ -1024,7 +1038,7 @@ module Graphene
     #   add_field :expiration_time, T_time_point_sec
     #   add_field :proposed_ops, Tm_array(T_op_wrapper)
     #   add_field :review_period_seconds, Tm_optional(T_uint32)
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # class OP_proposal_update # < T_composite
@@ -1039,7 +1053,7 @@ module Graphene
     #   add_field :key_approvals_to_add, Tm_set(Secp256k1Zkp::PublicKey)
     #   add_field :key_approvals_to_remove, Tm_set(Secp256k1Zkp::PublicKey)
 
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # class OP_proposal_delete # < T_composite
@@ -1047,7 +1061,7 @@ module Graphene
     #   add_field :fee_paying_account, Tm_protocol_id_type(ObjectType::Account)
     #   add_field :using_owner_authority, T_bool
     #   add_field :proposal, Tm_protocol_id_type(ObjectType::Proposal)
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # class OP_withdraw_permission_create # < T_composite
@@ -1196,7 +1210,7 @@ module Graphene
     #   add_field :fee_paying_account, Tm_protocol_id_type(ObjectType::Account)
     #   add_field :predicates, Tm_array(T_assert_predicate)
     #   add_field :required_auths, Tm_set(Tm_protocol_id_type(ObjectType::Account))
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # class OP_balance_claim # < T_composite
@@ -1214,7 +1228,7 @@ module Graphene
     #   add_field :to, Tm_protocol_id_type(ObjectType::Account)
     #   add_field :amount, T_asset
     #   add_field :memo, Tm_optional(T_memo_data)
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # class T_stealth_confirmation_memo_data # < T_composite
@@ -1285,7 +1299,7 @@ module Graphene
     #   add_field :bidder, Tm_protocol_id_type(ObjectType::Account)
     #   add_field :additional_collateral, T_asset
     #   add_field :debt_covered, T_asset
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # # TODO:OP virtual Execute_bid
@@ -1295,7 +1309,7 @@ module Graphene
     #   add_field :issuer, Tm_protocol_id_type(ObjectType::Account)
     #   add_field :asset_id, Tm_protocol_id_type(ObjectType::Asset)
     #   add_field :amount_to_claim, T_asset
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # class OP_asset_update_issuer # < T_composite
@@ -1303,7 +1317,7 @@ module Graphene
     #   add_field :issuer, Tm_protocol_id_type(ObjectType::Account)
     #   add_field :asset_to_update, Tm_protocol_id_type(ObjectType::Asset)
     #   add_field :new_issuer, Tm_optional(Tm_protocol_id_type(ObjectType::Account))
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # alias T_hash_rmd160 = FixedBytes(20)  # => RMD160
@@ -1332,7 +1346,7 @@ module Graphene
     #   add_field :htlc_id, Tm_protocol_id_type(ObjectType::Htlc)
     #   add_field :redeemer, Tm_protocol_id_type(ObjectType::Account)
     #   add_field :preimage, Bytes
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # # TODO:OP virtual Htlc_redeemed
@@ -1342,7 +1356,7 @@ module Graphene
     #   add_field :htlc_id, Tm_protocol_id_type(ObjectType::Htlc)
     #   add_field :update_issuer, Tm_protocol_id_type(ObjectType::Account)
     #   add_field :seconds_to_add, T_uint32
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # # TODO:OP virtual Htlc_refund
@@ -1357,7 +1371,7 @@ module Graphene
     #   add_field :account, Tm_protocol_id_type(ObjectType::Account)
     #   add_field :target_type, T_varint32 # see struct unsigned_int
     #   add_field :amount, T_asset
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # class OP_ticket_update # < T_composite
@@ -1366,7 +1380,7 @@ module Graphene
     #   add_field :account, Tm_protocol_id_type(ObjectType::Account)
     #   add_field :target_type, T_varint32 # see struct unsigned_int
     #   add_field :amount_for_new_target, Tm_optional(T_asset)
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # class OP_liquidity_pool_create # < T_composite
@@ -1377,14 +1391,14 @@ module Graphene
     #   add_field :share_asset, Tm_protocol_id_type(ObjectType::Asset)
     #   add_field :taker_fee_percent, T_uint16
     #   add_field :withdrawal_fee_percent, T_uint16
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # class OP_liquidity_pool_delete # < T_composite
     #   add_field :fee, T_asset
     #   add_field :account, Tm_protocol_id_type(ObjectType::Account)
     #   add_field :pool, Tm_protocol_id_type(ObjectType::Liquidity_pool)
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # class OP_liquidity_pool_deposit # < T_composite
@@ -1393,7 +1407,7 @@ module Graphene
     #   add_field :pool, Tm_protocol_id_type(ObjectType::Liquidity_pool)
     #   add_field :amount_a, T_asset
     #   add_field :amount_b, T_asset
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # class OP_liquidity_pool_withdraw # < T_composite
@@ -1401,7 +1415,7 @@ module Graphene
     #   add_field :account, Tm_protocol_id_type(ObjectType::Account)
     #   add_field :pool, Tm_protocol_id_type(ObjectType::Liquidity_pool)
     #   add_field :share_amount, T_asset
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # class OP_liquidity_pool_exchange # < T_composite
@@ -1410,7 +1424,7 @@ module Graphene
     #   add_field :pool, Tm_protocol_id_type(ObjectType::Liquidity_pool)
     #   add_field :amount_to_sell, T_asset
     #   add_field :min_to_receive, T_asset
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # class OP_samet_fund_create # < T_composite
@@ -1421,7 +1435,7 @@ module Graphene
     #   add_field :balance, T_int64
     #   add_field :fee_rate, T_uint32
 
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # class OP_samet_fund_delete # < T_composite
@@ -1429,7 +1443,7 @@ module Graphene
     #   add_field :owner_account, Tm_protocol_id_type(ObjectType::Account)
     #   add_field :fund_id, Tm_protocol_id_type(ObjectType::Samet_fund)
 
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # class OP_samet_fund_update # < T_composite
@@ -1440,7 +1454,7 @@ module Graphene
     #   add_field :delta_amount, Tm_optional(T_asset)
     #   add_field :new_fee_rate, Tm_optional(T_uint32)
 
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # class OP_samet_fund_borrow # < T_composite
@@ -1450,7 +1464,7 @@ module Graphene
 
     #   add_field :borrow_amount, T_asset
 
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # class OP_samet_fund_repay # < T_composite
@@ -1461,7 +1475,7 @@ module Graphene
     #   add_field :repay_amount, T_asset
     #   add_field :fund_fee, T_asset
 
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # class OP_credit_offer_create # < T_composite
@@ -1480,7 +1494,7 @@ module Graphene
     #   add_field :acceptable_collateral, Tm_map(Tm_protocol_id_type(ObjectType::Asset), T_price)
     #   add_field :acceptable_borrowers, Tm_map(Tm_protocol_id_type(ObjectType::Account), T_int64)
 
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # class OP_credit_offer_delete # < T_composite
@@ -1488,7 +1502,7 @@ module Graphene
     #   add_field :owner_account, Tm_protocol_id_type(ObjectType::Account)
     #   add_field :offer_id, Tm_protocol_id_type(ObjectType::Credit_offer)
 
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # class OP_credit_offer_update # < T_composite
@@ -1505,7 +1519,7 @@ module Graphene
     #   add_field :acceptable_collateral, Tm_optional(Tm_map(Tm_protocol_id_type(ObjectType::Asset), T_price))
     #   add_field :acceptable_borrowers, Tm_optional(Tm_map(Tm_protocol_id_type(ObjectType::Account), T_int64))
 
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # class OP_credit_offer_accept # < T_composite
@@ -1518,7 +1532,7 @@ module Graphene
     #   add_field :max_fee_rate, T_uint32
     #   add_field :min_duration_seconds, T_uint32
 
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # class OP_credit_deal_repay # < T_composite
@@ -1529,7 +1543,7 @@ module Graphene
     #   add_field :repay_amount, T_asset
     #   add_field :credit_fee, T_asset
 
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # # TODO:OP virtual Credit_deal_expired
@@ -1539,7 +1553,7 @@ module Graphene
     #   add_field :ref_block_prefix, T_uint32
     #   add_field :expiration, T_time_point_sec
     #   add_field :operations, Tm_array(T_operation)
-    #   add_field :extensions, Tm_set(T_future_extensions)
+    #   getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
     # end
 
     # class T_signed_transaction < T_transaction
@@ -1557,24 +1571,49 @@ module Graphene
   end
 end
 
-# => TODO:test
+# # => TODO:内存比较
 include Graphene::Operations
 require "benchmark"
 
-struct Test05
-  @amount = 3
-end
+# require "./serializer"
+# require "./**"
 
-result = Benchmark.memory do
+# def assert(cond)
+#   raise "assert failed." unless cond
+# end
+
+# def assert(cond, &blk : -> String)
+#   raise blk.call unless cond
+# end
+
+# result1 = Benchmark.memory do
+#   1000.times {
+#     opdata = {
+#       "fee"    => {"amount" => 555, "asset_id" => "1.3.0"},
+#       "from"   => "1.2.0",
+#       "to"     => "1.2.2",
+#       "amount" => {"amount" => 555, "asset_id" => "1.3.0"},
+#     }
+#     bin = BitShares::Operations::OP_transfer.to_binary(opdata)
+#     BitShares::Operations::OP_transfer.parse(bin)
+#   }
+# end
+# p! result1
+
+# struct Test05
+#   @amount = 3
+# end
+
+result2 = Benchmark.memory do
   1000.times {
     # Test05.new
     # Tm_protocol_id_type(ObjectType::Account).new(3_u64)
     op = OP_transfer.new
-    op.from = Tm_protocol_id_type(ObjectType::Account).new(1_u64)
+    op.from = Tm_protocol_id_type(ObjectType::Account).new(0_u64)
     op.to = Tm_protocol_id_type(ObjectType::Account).new(2_u64)
     op.amount = T_asset.new(101_i64, 3_u64)
     # op.pack
-    # Graphene::Serialize::Pack(OP_transfer).unpack(op.pack)
+    Graphene::Serialize::Pack(OP_transfer).unpack(op.pack)
   }
 end
-p! result
+p! result2
