@@ -547,6 +547,18 @@ end
 
 {% end %}
 
+struct Enum
+  include Graphene::Serialize::Pack(self)
+
+  def pack(io)
+    self.value.pack(io)
+  end
+
+  def self.unpack(io) : self
+    return new(typeof(self.values.first.value).unpack(io))
+  end
+end
+
 class String
   include Graphene::Serialize::Pack(self)
 
