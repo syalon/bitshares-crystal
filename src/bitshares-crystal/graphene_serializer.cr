@@ -103,12 +103,18 @@ module Graphene
 
       def pack(io)
         {% for ivar in @type.instance_vars %}
+          {% if ivar.has_default_value? %}
+            raise Unsupported_default_value.new("Composite(T) do not support default values. please use the initialize method.")
+          {% end %}
           @{{ ivar.id }}.pack(io)
         {% end %}
       end
 
       def __unpack_all_instance_vars(io)
         {% for ivar in @type.instance_vars %}
+          {% if ivar.has_default_value? %}
+            raise Unsupported_default_value.new("Composite(T) do not support default values. please use the initialize method.")
+          {% end %}
           @{{ ivar.id }} = {{ ivar.type.id }}.unpack(io)
         {% end %}
       end
@@ -116,7 +122,13 @@ module Graphene
       macro included
 
         def self.unpack(io) : self
-          target = uninitialized T
+
+          {% if @type.struct? %}
+            target = uninitialized T
+          {% else %}
+            target = T.new
+          {% end %}
+
           target.__unpack_all_instance_vars(io)
           return target
         end
