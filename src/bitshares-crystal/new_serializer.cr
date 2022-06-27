@@ -6,12 +6,10 @@ module Graphene
     include Graphene::Serialize
     include BitShares::Blockchain
 
-    # struct T_Test
-    #   include Graphene::Serialize::Composite(self)
-
-    #   getter amount : UInt8
-    #   getter amount_array : Array(UInt8)
-    # end
+    # 测试结构体
+    graphene_struct T_Test,
+      amount : UInt8,
+      asset_id : String
 
     #
     # 资产对象
@@ -124,7 +122,9 @@ module Graphene
       end
     end
 
-    # TODO:OP virtual Fill_order
+    graphene_struct OP_fill_order
+
+    # => TODO:OP virtual Fill_order
 
     struct T_authority
       include Graphene::Serialize::Composite(self)
@@ -834,7 +834,9 @@ module Graphene
       end
     end
 
-    # TODO:OP Committee_member_update_global_parameters = 31
+    graphene_struct OP_committee_member_update_global_parameters
+
+    # => TODO:OP Committee_member_update_global_parameters = 31
 
     struct T_linear_vesting_policy_initializer
       include Graphene::Serialize::Composite(self)
@@ -1171,6 +1173,8 @@ module Graphene
       end
     end
 
+    graphene_struct OP_asset_settle_cancel
+
     # TODO:OP virtual Asset_settle_cancel
 
     struct OP_asset_claim_fees
@@ -1198,6 +1202,8 @@ module Graphene
       end
     end
 
+    graphene_struct OP_fba_distribute
+
     # TODO:OP virtual Fba_distribute
 
     struct OP_bid_collateral
@@ -1216,6 +1222,8 @@ module Graphene
                      @extensions)
       end
     end
+
+    graphene_struct OP_execute_bid
 
     # TODO:OP virtual Execute_bid
 
@@ -1309,6 +1317,8 @@ module Graphene
       end
     end
 
+    graphene_struct OP_htlc_redeemed
+
     # TODO:OP virtual Htlc_redeemed
 
     struct OP_htlc_extend
@@ -1328,9 +1338,15 @@ module Graphene
       end
     end
 
+    graphene_struct OP_htlc_refund
+
     # TODO:OP virtual Htlc_refund
 
     # TODO:OP 3
+    graphene_struct OP_custom_authority_create
+    graphene_struct OP_custom_authority_update
+    graphene_struct OP_custom_authority_delete
+
     # Custom_authority_create                   = 54
     # Custom_authority_update                   = 55
     # Custom_authority_delete                   = 56
@@ -1692,6 +1708,8 @@ module Graphene
       end
     end
 
+    graphene_struct OP_credit_deal_expired
+
     # TODO:OP virtual Credit_deal_expired
 
     abstract struct T_transaction
@@ -1723,19 +1741,13 @@ module Graphene
       end
     end
 
-    # => TODO:按照顺序关联所有的 OP
-    alias T_operation = Tm_static_variant(OP_transfer,  # => 0
-OP_limit_order_create,                                  # => 1
-OP_limit_order_cancel                                   # => 2
-)
-
-    # # => 把所有的 operations 的序列化对象和 opcode 关联。
-    # Opcode2optype = Hash(Int8, FieldType).new
-    # {% for optype_klass in @type.constants %}
-    #   {% if optype_klass.id =~ /^OP_/ %}
-    #     %enum_field = Blockchain::Operations.parse?("{{ optype_klass.downcase }}".gsub(/op_/, "").capitalize)
-    #     Opcode2optype[%enum_field.value] = {{ optype_klass.id }} if %enum_field
-    #   {% end %}
-    # {% end %}
+    # 定义 T_operation 类型
+    {% begin %}
+      alias T_operation = Graphene::Serialize::Tm_static_variant(
+          {% for member in ::BitShares::Blockchain::Operations.constants %}
+            {{ "OP_#{member.downcase}".id }},
+          {% end %}
+        )
+    {% end %}
   end
 end

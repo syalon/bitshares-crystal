@@ -551,6 +551,35 @@ module Graphene
   end
 end
 
+# 全局宏
+#
+# 定义可以序列化的结构体。
+# 参考 record 宏。
+macro graphene_struct(name, *properties)
+  struct {{name.id}}
+    
+    include Graphene::Serialize::Composite(self)
+
+    {% for property in properties %}
+      {% if property.is_a?(TypeDeclaration) %}
+        getter {{property}}
+      {% else %}
+        getter :{{property.id}}
+      {% end %}
+    {% end %}
+
+    def initialize({{
+                     *properties.map do |field|
+                       "@#{field.id}".id
+                     end
+                   }})
+    end
+
+    {{yield}}
+    
+  end
+end
+
 struct Bool
   include Graphene::Serialize::Pack(self)
 
