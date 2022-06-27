@@ -122,9 +122,8 @@ module Graphene
       end
     end
 
-    graphene_struct OP_fill_order
-
     # => TODO:OP virtual Fill_order
+    alias OP_fill_order = Graphene::Serialize::T_unsupported_type
 
     struct T_authority
       include Graphene::Serialize::Composite(self)
@@ -834,9 +833,8 @@ module Graphene
       end
     end
 
-    graphene_struct OP_committee_member_update_global_parameters
-
     # => TODO:OP Committee_member_update_global_parameters = 31
+    alias OP_committee_member_update_global_parameters = Graphene::Serialize::T_unsupported_type
 
     struct T_linear_vesting_policy_initializer
       include Graphene::Serialize::Composite(self)
@@ -1173,9 +1171,8 @@ module Graphene
       end
     end
 
-    graphene_struct OP_asset_settle_cancel
-
     # TODO:OP virtual Asset_settle_cancel
+    alias OP_asset_settle_cancel = Graphene::Serialize::T_unsupported_type
 
     struct OP_asset_claim_fees
       include Graphene::Serialize::Composite(self)
@@ -1202,9 +1199,8 @@ module Graphene
       end
     end
 
-    graphene_struct OP_fba_distribute
-
     # TODO:OP virtual Fba_distribute
+    alias OP_fba_distribute = Graphene::Serialize::T_unsupported_type
 
     struct OP_bid_collateral
       include Graphene::Serialize::Composite(self)
@@ -1223,9 +1219,8 @@ module Graphene
       end
     end
 
-    graphene_struct OP_execute_bid
-
     # TODO:OP virtual Execute_bid
+    alias OP_execute_bid = Graphene::Serialize::T_unsupported_type
 
     struct OP_asset_claim_pool
       include Graphene::Serialize::Composite(self)
@@ -1317,9 +1312,8 @@ module Graphene
       end
     end
 
-    graphene_struct OP_htlc_redeemed
-
     # TODO:OP virtual Htlc_redeemed
+    alias OP_htlc_redeemed = Graphene::Serialize::T_unsupported_type
 
     struct OP_htlc_extend
       include Graphene::Serialize::Composite(self)
@@ -1338,18 +1332,16 @@ module Graphene
       end
     end
 
-    graphene_struct OP_htlc_refund
-
     # TODO:OP virtual Htlc_refund
+    alias OP_htlc_refund = Graphene::Serialize::T_unsupported_type
 
     # TODO:OP 3
-    graphene_struct OP_custom_authority_create
-    graphene_struct OP_custom_authority_update
-    graphene_struct OP_custom_authority_delete
-
     # Custom_authority_create                   = 54
     # Custom_authority_update                   = 55
     # Custom_authority_delete                   = 56
+    alias OP_custom_authority_create = Graphene::Serialize::T_unsupported_type
+    alias OP_custom_authority_update = Graphene::Serialize::T_unsupported_type
+    alias OP_custom_authority_delete = Graphene::Serialize::T_unsupported_type
 
     struct OP_ticket_create
       include Graphene::Serialize::Composite(self)
@@ -1708,9 +1700,8 @@ module Graphene
       end
     end
 
-    graphene_struct OP_credit_deal_expired
-
     # TODO:OP virtual Credit_deal_expired
+    alias OP_credit_deal_expired = Graphene::Serialize::T_unsupported_type
 
     abstract struct T_transaction_virtual
       getter ref_block_num : UInt16

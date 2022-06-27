@@ -547,6 +547,26 @@ module Graphene
         return new(UInt32.unpack(io))
       end
     end
+
+    struct T_unsupported_type
+      include Graphene::Serialize::Pack(self)
+
+      def pack(io)
+        raise "not supported"
+      end
+
+      def self.unpack(io) : self
+        raise "not supported"
+        # => not reached
+        return new
+      end
+
+      # => 实现比较运算。
+      def <=>(other)
+        raise "not supported"
+        return 0
+      end
+    end
   end
 end
 
