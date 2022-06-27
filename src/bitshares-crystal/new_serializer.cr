@@ -1712,9 +1712,7 @@ module Graphene
 
     # TODO:OP virtual Credit_deal_expired
 
-    abstract struct T_transaction
-      include Graphene::Serialize::Composite(self)
-
+    abstract struct T_transaction_virtual
       getter ref_block_num : UInt16
       getter ref_block_prefix : UInt32
       getter expiration : T_time_point_sec
@@ -1729,7 +1727,11 @@ module Graphene
       end
     end
 
-    struct T_signed_transaction < T_transaction
+    struct T_transaction < T_transaction_virtual
+      include Graphene::Serialize::Composite(self)
+    end
+
+    abstract struct T_signed_transaction_virtual < T_transaction_virtual
       getter signatures : Array(FixedBytes(65))
 
       def initialize(@ref_block_num,
@@ -1739,6 +1741,10 @@ module Graphene
                      @extensions,
                      @signatures)
       end
+    end
+
+    struct T_signed_transaction < T_signed_transaction_virtual
+      include Graphene::Serialize::Composite(self)
     end
 
     # 定义 T_operation 类型
