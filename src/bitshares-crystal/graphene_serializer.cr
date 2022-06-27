@@ -409,10 +409,9 @@ module Graphene
       end
 
       def self.unpack(io) : self
+        result = new
+
         len = io.read_varint32
-
-        result = new(len)
-
         len.times { result.add(T.unpack(io)) }
 
         return result
@@ -557,7 +556,7 @@ end
 # 参考 record 宏。
 macro graphene_struct(name, *properties)
   struct {{name.id}}
-    
+
     include Graphene::Serialize::Composite(self)
 
     {% for property in properties %}
@@ -756,5 +755,6 @@ class Secp256k1Zkp::Address
 
   def self.unpack(io) : self
     raise "not supported"
+    return new("", "") # => not reached
   end
 end
