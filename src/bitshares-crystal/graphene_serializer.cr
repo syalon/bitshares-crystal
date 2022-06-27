@@ -391,6 +391,41 @@ module Graphene
       end
     end
 
+    # => TODO:元素不可重复？限制...
+    struct Tm_set(T)
+      @flat_list = Array(T).new
+
+      def add(item : T)
+        @flat_list << item
+      end
+
+      def each(&blk : T -> _)
+        @flat_list.each(&blk)
+      end
+
+      def pack(io)
+        io.write_varint32(@flat_list.size)
+        sort_data.each &.pack(io)
+      end
+
+      def self.unpack(io) : self
+        len = io.read_varint32
+
+        result = new(len)
+
+        len.times { result.add(T.unpack(io)) }
+
+        return result
+      end
+
+      def sort_data
+        # => TODO: nosort
+        # => TODO: sort by
+        return @flat_list if @flat_list.size <= 1
+        return @flat_list.sort { |a, b| a <=> b }
+      end
+    end
+
     # 空集合，用于代替 Set(T_future_extensions) 类型，提高效率。避免 Set 分配堆内存。
     struct Tm_empty_set(T)
       include Graphene::Serialize::Pack(self)
@@ -594,33 +629,6 @@ class Array(T)
 
   def self.unpack(io) : self
     return new(io.read_varint32) { T.unpack(io) }
-  end
-end
-
-# => TODO:考虑别打实现
-struct Set(T)
-  include Graphene::Serialize::Pack(self)
-
-  def pack(io)
-    io.write_varint32(self.size)
-    sort_data.each(&.pack(io))
-  end
-
-  def self.unpack(io) : self
-    len = io.read_varint32
-
-    result = new(len)
-
-    len.times { result.add(T.unpack(io)) }
-
-    return result
-  end
-
-  def sort_data
-    # => TODO: nosort
-    # => TODO: sort by
-    return self if self.size <= 1
-    return self.to_a.sort { |a, b| a <=> b }
   end
 end
 
