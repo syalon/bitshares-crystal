@@ -48,7 +48,7 @@ module Graphene
       getter to : Tm_protocol_id_type(ObjectType::Account)
       getter amount : T_asset
       getter memo : Tm_optional(T_memo_data)
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @from,
@@ -68,7 +68,7 @@ module Graphene
       getter min_to_receive : T_asset
       getter expiration : T_time_point_sec
       getter fill_or_kill : Bool
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @seller,
@@ -86,7 +86,7 @@ module Graphene
       getter fee : T_asset
       getter fee_paying_account : Tm_protocol_id_type(ObjectType::Account)
       getter order : Tm_protocol_id_type(ObjectType::Limit_order)
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @fee_paying_account,
@@ -149,7 +149,7 @@ module Graphene
       getter num_witness : UInt16
       getter num_committee : UInt16
       getter votes : Tm_set(T_vote_id)
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@memo_key,
                      @voting_account,
@@ -272,7 +272,7 @@ module Graphene
       getter account_to_list : Tm_protocol_id_type(ObjectType::Account)
       getter new_listing : UInt8
 
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @authorizing_account,
@@ -288,7 +288,7 @@ module Graphene
       getter fee : T_asset
       getter account_to_upgrade : Tm_protocol_id_type(ObjectType::Account)
       getter upgrade_to_lifetime_member : Bool
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @account_to_upgrade,
@@ -303,7 +303,7 @@ module Graphene
       getter fee : T_asset
       getter account_id : Tm_protocol_id_type(ObjectType::Account)
       getter new_owner : Tm_protocol_id_type(ObjectType::Account)
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @account_id,
@@ -434,7 +434,7 @@ module Graphene
       getter common_options : T_asset_options
       getter bitasset_opts : Tm_optional(T_bitasset_options)
       getter is_prediction_market : Bool
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @issuer,
@@ -485,7 +485,7 @@ module Graphene
       getter issuer : Tm_protocol_id_type(ObjectType::Account)
       getter asset_to_update : Tm_protocol_id_type(ObjectType::Asset)
       getter new_options : T_bitasset_options
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @issuer,
@@ -502,7 +502,7 @@ module Graphene
       getter issuer : Tm_protocol_id_type(ObjectType::Account)
       getter asset_to_update : Tm_protocol_id_type(ObjectType::Asset)
       getter new_feed_producers : Tm_set(Tm_protocol_id_type(ObjectType::Account))
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @issuer,
@@ -520,7 +520,7 @@ module Graphene
       getter asset_to_issue : T_asset
       getter issue_to_account : Tm_protocol_id_type(ObjectType::Account)
       getter memo : Tm_optional(T_memo_data)
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @issuer,
@@ -537,7 +537,7 @@ module Graphene
       getter fee : T_asset
       getter payer : Tm_protocol_id_type(ObjectType::Account)
       getter amount_to_reserve : T_asset
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @payer,
@@ -552,8 +552,8 @@ module Graphene
       getter fee : T_asset
       getter from_account : Tm_protocol_id_type(ObjectType::Account)
       getter asset_id : Tm_protocol_id_type(ObjectType::Asset)
-      getter amount : T_share_type                              # only core asset
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter amount : T_share_type                          # only core asset
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @from_account,
@@ -569,7 +569,7 @@ module Graphene
       getter fee : T_asset
       getter account : Tm_protocol_id_type(ObjectType::Account)
       getter amount : T_asset
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @account,
@@ -585,7 +585,7 @@ module Graphene
       getter issuer : Tm_protocol_id_type(ObjectType::Account)
       getter asset_to_settle : Tm_protocol_id_type(ObjectType::Asset)
       getter settle_price : T_price
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @issuer,
@@ -671,7 +671,7 @@ module Graphene
       getter expiration_time : T_time_point_sec
       getter proposed_ops : Array(T_op_wrapper)
       getter review_period_seconds : Tm_optional(UInt32)
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @fee_paying_account,
@@ -696,7 +696,7 @@ module Graphene
       getter key_approvals_to_add : Tm_set(Secp256k1Zkp::PublicKey)
       getter key_approvals_to_remove : Tm_set(Secp256k1Zkp::PublicKey)
 
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @fee_paying_account,
@@ -718,7 +718,7 @@ module Graphene
       getter fee_paying_account : Tm_protocol_id_type(ObjectType::Account)
       getter using_owner_authority : Bool
       getter proposal : Tm_protocol_id_type(ObjectType::Proposal)
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @fee_paying_account,
@@ -1022,7 +1022,7 @@ module Graphene
       getter fee_paying_account : Tm_protocol_id_type(ObjectType::Account)
       getter predicates : Array(T_assert_predicate)
       getter required_auths : Tm_set(Tm_protocol_id_type(ObjectType::Account))
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @fee_paying_account,
@@ -1058,7 +1058,7 @@ module Graphene
       getter to : Tm_protocol_id_type(ObjectType::Account)
       getter amount : T_asset
       getter memo : Tm_optional(T_memo_data)
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @issuer,
@@ -1213,7 +1213,7 @@ module Graphene
       getter bidder : Tm_protocol_id_type(ObjectType::Account)
       getter additional_collateral : T_asset
       getter debt_covered : T_asset
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @bidder,
@@ -1234,7 +1234,7 @@ module Graphene
       getter issuer : Tm_protocol_id_type(ObjectType::Account)
       getter asset_id : Tm_protocol_id_type(ObjectType::Asset)
       getter amount_to_claim : T_asset
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @issuer,
@@ -1251,7 +1251,7 @@ module Graphene
       getter issuer : Tm_protocol_id_type(ObjectType::Account)
       getter asset_to_update : Tm_protocol_id_type(ObjectType::Asset)
       getter new_issuer : Tm_optional(Tm_protocol_id_type(ObjectType::Account))
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @issuer,
@@ -1307,7 +1307,7 @@ module Graphene
       getter htlc_id : Tm_protocol_id_type(ObjectType::Htlc)
       getter redeemer : Tm_protocol_id_type(ObjectType::Account)
       getter preimage : Bytes
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @htlc_id,
@@ -1328,7 +1328,7 @@ module Graphene
       getter htlc_id : Tm_protocol_id_type(ObjectType::Htlc)
       getter update_issuer : Tm_protocol_id_type(ObjectType::Account)
       getter seconds_to_add : UInt32
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @htlc_id,
@@ -1358,7 +1358,7 @@ module Graphene
       getter account : Tm_protocol_id_type(ObjectType::Account)
       getter target_type : T_varint32 # see struct unsigned_int
       getter amount : T_asset
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @account,
@@ -1376,7 +1376,7 @@ module Graphene
       getter account : Tm_protocol_id_type(ObjectType::Account)
       getter target_type : T_varint32 # see struct unsigned_int
       getter amount_for_new_target : Tm_optional(T_asset)
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @ticket,
@@ -1397,7 +1397,7 @@ module Graphene
       getter share_asset : Tm_protocol_id_type(ObjectType::Asset)
       getter taker_fee_percent : UInt16
       getter withdrawal_fee_percent : UInt16
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @account,
@@ -1416,7 +1416,7 @@ module Graphene
       getter fee : T_asset
       getter account : Tm_protocol_id_type(ObjectType::Account)
       getter pool : Tm_protocol_id_type(ObjectType::Liquidity_pool)
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @account,
@@ -1433,7 +1433,7 @@ module Graphene
       getter pool : Tm_protocol_id_type(ObjectType::Liquidity_pool)
       getter amount_a : T_asset
       getter amount_b : T_asset
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @account,
@@ -1451,7 +1451,7 @@ module Graphene
       getter account : Tm_protocol_id_type(ObjectType::Account)
       getter pool : Tm_protocol_id_type(ObjectType::Liquidity_pool)
       getter share_amount : T_asset
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @account,
@@ -1469,7 +1469,7 @@ module Graphene
       getter pool : Tm_protocol_id_type(ObjectType::Liquidity_pool)
       getter amount_to_sell : T_asset
       getter min_to_receive : T_asset
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @account,
@@ -1490,7 +1490,7 @@ module Graphene
       getter balance : Int64
       getter fee_rate : UInt32
 
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @owner_account,
@@ -1508,7 +1508,7 @@ module Graphene
       getter owner_account : Tm_protocol_id_type(ObjectType::Account)
       getter fund_id : Tm_protocol_id_type(ObjectType::Samet_fund)
 
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @owner_account,
@@ -1527,7 +1527,7 @@ module Graphene
       getter delta_amount : Tm_optional(T_asset)
       getter new_fee_rate : Tm_optional(UInt32)
 
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @owner_account,
@@ -1547,7 +1547,7 @@ module Graphene
 
       getter borrow_amount : T_asset
 
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @borrower,
@@ -1567,7 +1567,7 @@ module Graphene
       getter repay_amount : T_asset
       getter fund_fee : T_asset
 
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @account,
@@ -1596,7 +1596,7 @@ module Graphene
       getter acceptable_collateral : Tm_map(Tm_protocol_id_type(ObjectType::Asset), T_price)
       getter acceptable_borrowers : Tm_map(Tm_protocol_id_type(ObjectType::Account), Int64)
 
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @owner_account,
@@ -1620,7 +1620,7 @@ module Graphene
       getter owner_account : Tm_protocol_id_type(ObjectType::Account)
       getter offer_id : Tm_protocol_id_type(ObjectType::Credit_offer)
 
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @owner_account,
@@ -1645,7 +1645,7 @@ module Graphene
       getter acceptable_collateral : Tm_optional(Tm_map(Tm_protocol_id_type(ObjectType::Asset), T_price))
       getter acceptable_borrowers : Tm_optional(Tm_map(Tm_protocol_id_type(ObjectType::Account), Int64))
 
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @owner_account,
@@ -1674,7 +1674,7 @@ module Graphene
       getter max_fee_rate : UInt32
       getter min_duration_seconds : UInt32
 
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @borrower,
@@ -1697,7 +1697,7 @@ module Graphene
       getter repay_amount : T_asset
       getter credit_fee : T_asset
 
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@fee,
                      @account,
@@ -1717,7 +1717,7 @@ module Graphene
       getter ref_block_prefix : UInt32
       getter expiration : T_time_point_sec
       getter operations : Array(T_operation)
-      getter extensions = Tm_empty_set(T_future_extensions).new # => 预留：空集合，未来扩展。
+      getter extensions : Tm_empty_set(T_future_extensions) # => 预留：空集合，未来扩展。
 
       def initialize(@ref_block_num,
                      @ref_block_prefix,
