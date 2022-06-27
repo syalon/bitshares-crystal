@@ -208,7 +208,7 @@ module Graphene
       include Comparable(self)                # => 支持比较运算，需要实现 <=> 方法。
       include Graphene::Serialize::Pack(self) # => 支持石墨烯序列化
 
-      getter instance : UInt64
+      property instance : UInt64
 
       # REMARK: 这里存在一个语言BUG
       # => 如果 Tm_protocol_id_type(XXX) 在其他结构体进行了声明，则泛型的类型为 Int8，如果未声明类型为 Enum。
@@ -756,5 +756,11 @@ class Secp256k1Zkp::Address
   def self.unpack(io) : self
     raise "not supported"
     return new("", "") # => not reached
+  end
+
+  # => 实现比较运算。
+  def <=>(other)
+    raise "not supported"
+    return 0
   end
 end

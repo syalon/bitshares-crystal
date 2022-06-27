@@ -1722,8 +1722,8 @@ module Graphene
       def initialize(@ref_block_num,
                      @ref_block_prefix,
                      @expiration,
-                     @operations,
-                     @extensions)
+                     @operations)
+        @extensions = typeof(@extensions).new
       end
     end
 
@@ -1738,8 +1738,18 @@ module Graphene
                      @ref_block_prefix,
                      @expiration,
                      @operations,
-                     @extensions,
                      @signatures)
+        @extensions = typeof(@extensions).new
+      end
+
+      def initialize(other : T_transaction_virtual)
+        @ref_block_num = other.ref_block_num
+        @ref_block_prefix = other.ref_block_prefix
+        @expiration = other.expiration
+        @operations = other.operations
+        @extensions = other.extensions
+
+        @signatures = typeof(@signatures).new
       end
     end
 
