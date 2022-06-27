@@ -376,7 +376,7 @@ module Graphene
           @maximum_short_squeeze_ratio = typeof(@maximum_short_squeeze_ratio).new
           @margin_call_fee_ratio = typeof(@margin_call_fee_ratio).new
           @force_settle_fee_percent = typeof(@force_settle_fee_percent).new
-          @black_swan_response_method = typeof(@margin_call_fee_ratio).new
+          @black_swan_response_method = typeof(@black_swan_response_method).new
         end
       end
 
