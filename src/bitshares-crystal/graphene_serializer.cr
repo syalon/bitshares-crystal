@@ -285,6 +285,8 @@ module Graphene
 
     # :nodoc:
     struct Tm_static_variant(*T)
+      include Comparable(Tm_static_variant(*T)) # => 支持比较运算，需要实现 <=> 方法。
+
       getter index : Int32 = 0
       property value : Union(*T)
 
@@ -347,6 +349,10 @@ module Graphene
       #   return Raw.new([Raw.new(type_id), optype.to_object(opdata.last).not_nil!])
       # end
 
+      # => 实现比较运算。
+      def <=>(other)
+        return @index <=> other.index
+      end
     end
 
     # :nodoc:

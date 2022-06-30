@@ -11,6 +11,45 @@ module Graphene
       amount : UInt8,
       asset_id : String
 
+    record Fee_parameters_type_default,
+      fee : UInt64 do
+      include Graphene::Serialize::Composite(self)
+    end
+
+    record Fee_parameters_type_empty do
+      include Graphene::Serialize::Composite(self)
+    end
+
+    record Fee_parameters_type_with_per_kbytes,
+      fee : UInt64,
+      price_per_kbyte : UInt32 do
+      include Graphene::Serialize::Composite(self)
+    end
+
+    abstract struct T_unsupported_type_base
+      include Graphene::Serialize::Pack(self)
+
+      def pack(io)
+        raise "not supported"
+      end
+
+      def self.unpack(io) : self
+        raise "not supported"
+        # => not reached
+        return new
+      end
+
+      # => 实现比较运算。
+      def <=>(other)
+        raise "not supported"
+        return 0
+      end
+    end
+
+    struct T_unsupported_type_virtual_op < T_unsupported_type_base
+      alias Fee_parameters_type = Fee_parameters_type_empty
+    end
+
     #
     # 资产对象
     #
@@ -41,6 +80,8 @@ module Graphene
     end
 
     struct OP_transfer
+      alias Fee_parameters_type = Fee_parameters_type_with_per_kbytes
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -60,6 +101,8 @@ module Graphene
     end
 
     struct OP_limit_order_create
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -81,6 +124,8 @@ module Graphene
     end
 
     struct OP_limit_order_cancel
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -96,6 +141,8 @@ module Graphene
     end
 
     struct OP_call_order_update
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       struct Ext
@@ -123,7 +170,7 @@ module Graphene
     end
 
     # => TODO:OP virtual Fill_order
-    alias OP_fill_order = Graphene::Serialize::T_unsupported_type
+    alias OP_fill_order = T_unsupported_type_virtual_op
 
     struct T_authority
       include Graphene::Serialize::Composite(self)
@@ -190,6 +237,13 @@ module Graphene
     end
 
     struct OP_account_create
+      record Fee_parameters_type,
+        basic_fee : UInt64,
+        premium_fee : UInt64,
+        price_per_kbyte : UInt32 do
+        include Graphene::Serialize::Composite(self)
+      end
+
       include Graphene::Serialize::Composite(self)
 
       struct Ext
@@ -231,6 +285,8 @@ module Graphene
     end
 
     struct OP_account_update
+      alias Fee_parameters_type = Fee_parameters_type_with_per_kbytes
+
       include Graphene::Serialize::Composite(self)
 
       struct Ext
@@ -264,6 +320,8 @@ module Graphene
     end
 
     struct OP_account_whitelist
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -282,6 +340,12 @@ module Graphene
     end
 
     struct OP_account_upgrade
+      record Fee_parameters_type,
+        membership_annual_fee : UInt64,
+        membership_lifetime_fee : UInt64 do
+        include Graphene::Serialize::Composite(self)
+      end
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -297,6 +361,8 @@ module Graphene
     end
 
     struct OP_account_transfer
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -424,6 +490,14 @@ module Graphene
     end
 
     struct OP_asset_create
+      record Fee_parameters_type,
+        symbol3 : UInt64,
+        symbol4 : UInt64,
+        long_symbol : UInt64,
+        price_per_kbyte : UInt32 do
+        include Graphene::Serialize::Composite(self)
+      end
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -447,6 +521,8 @@ module Graphene
     end
 
     struct OP_asset_update
+      alias Fee_parameters_type = Fee_parameters_type_with_per_kbytes
+
       include Graphene::Serialize::Composite(self)
 
       struct Ext
@@ -478,6 +554,8 @@ module Graphene
     end
 
     struct OP_asset_update_bitasset
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -495,6 +573,8 @@ module Graphene
     end
 
     struct OP_asset_update_feed_producers
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -512,6 +592,8 @@ module Graphene
     end
 
     struct OP_asset_issue
+      alias Fee_parameters_type = Fee_parameters_type_with_per_kbytes
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -531,6 +613,8 @@ module Graphene
     end
 
     struct OP_asset_reserve
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -546,6 +630,8 @@ module Graphene
     end
 
     struct OP_asset_fund_fee_pool
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -563,6 +649,8 @@ module Graphene
     end
 
     struct OP_asset_settle
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -578,6 +666,8 @@ module Graphene
     end
 
     struct OP_asset_global_settle
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -595,6 +685,8 @@ module Graphene
     end
 
     struct OP_asset_publish_feed
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       struct Ext
@@ -622,6 +714,8 @@ module Graphene
     end
 
     struct OP_witness_create
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -637,6 +731,8 @@ module Graphene
     end
 
     struct OP_witness_update
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -663,6 +759,8 @@ module Graphene
     end
 
     struct OP_proposal_create
+      alias Fee_parameters_type = Fee_parameters_type_with_per_kbytes
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -682,6 +780,8 @@ module Graphene
     end
 
     struct OP_proposal_update
+      alias Fee_parameters_type = Fee_parameters_type_with_per_kbytes
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -711,6 +811,8 @@ module Graphene
     end
 
     struct OP_proposal_delete
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -728,6 +830,8 @@ module Graphene
     end
 
     struct OP_withdraw_permission_create
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -749,6 +853,8 @@ module Graphene
     end
 
     struct OP_withdraw_permission_update
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -772,6 +878,8 @@ module Graphene
     end
 
     struct OP_withdraw_permission_claim
+      alias Fee_parameters_type = Fee_parameters_type_with_per_kbytes
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -791,6 +899,8 @@ module Graphene
     end
 
     struct OP_withdraw_permission_delete
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -806,6 +916,8 @@ module Graphene
     end
 
     struct OP_committee_member_create
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -819,6 +931,8 @@ module Graphene
     end
 
     struct OP_committee_member_update
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -833,8 +947,138 @@ module Graphene
       end
     end
 
-    # => TODO:OP Committee_member_update_global_parameters = 31
-    alias OP_committee_member_update_global_parameters = Graphene::Serialize::T_unsupported_type
+    struct T_fee_schedule
+      include Graphene::Serialize::Composite(self)
+
+      getter parameters : Tm_set(T_fee_parameter) # => must be sorted by fee_parameters.which() and have no duplicates
+      getter scale : UInt32
+
+      def initialize(@parameters,
+                     @scale)
+      end
+    end
+
+    struct T_chain_parameters
+      include Graphene::Serialize::Composite(self)
+
+      struct Htlc_options
+        include Graphene::Serialize::Composite(self)
+
+        getter max_timeout_secs : UInt32
+        getter max_preimage_size : UInt32
+
+        def initialize(@max_timeout_secs,
+                       @max_preimage_size)
+        end
+      end
+
+      struct Custom_authority_options_type
+        include Graphene::Serialize::Composite(self)
+
+        getter max_custom_authority_lifetime_seconds : UInt32
+        getter max_custom_authorities_per_account : UInt32
+        getter max_custom_authorities_per_account_op : UInt32
+        getter max_custom_authority_restrictions : UInt32
+
+        def initialize(@max_custom_authority_lifetime_seconds,
+                       @max_custom_authorities_per_account,
+                       @max_custom_authorities_per_account_op,
+                       @max_custom_authority_restrictions)
+        end
+      end
+
+      struct Ext
+        include Graphene::Serialize::Extension(self)
+
+        getter updatable_htlc_options : Tm_optional(Htlc_options)
+        getter custom_authority_options : Tm_optional(Custom_authority_options_type)
+        getter market_fee_network_percent : Tm_optional(UInt16)
+        getter maker_fee_discount_percent : Tm_optional(UInt16)
+
+        def initialize
+          @updatable_htlc_options = typeof(@updatable_htlc_options).new
+          @custom_authority_options = typeof(@custom_authority_options).new
+          @market_fee_network_percent = typeof(@market_fee_network_percent).new
+          @maker_fee_discount_percent = typeof(@maker_fee_discount_percent).new
+        end
+      end
+
+      getter current_fees : T_fee_schedule
+
+      getter block_interval : UInt8
+      getter maintenance_interval : UInt32
+      getter maintenance_skip_slots : UInt8
+      getter committee_proposal_review_period : UInt32
+      getter maximum_transaction_size : UInt32
+      getter maximum_block_size : UInt32
+      getter maximum_time_until_expiration : UInt32
+      getter maximum_proposal_lifetime : UInt32
+      getter maximum_asset_whitelist_authorities : UInt8
+      getter maximum_asset_feed_publishers : UInt8
+      getter maximum_witness_count : UInt16
+      getter maximum_committee_count : UInt16
+      getter maximum_authority_membership : UInt16
+      getter reserve_percent_of_fee : UInt16
+      getter network_percent_of_fee : UInt16
+      getter lifetime_referrer_percent_of_fee : UInt16
+      getter cashback_vesting_period_seconds : UInt32
+      getter cashback_vesting_threshold : T_share_type
+      getter count_non_member_votes : Bool
+      getter allow_non_member_whitelists : Bool
+      getter witness_pay_per_block : T_share_type
+      # getter witness_pay_vesting_seconds : UInt32 # => MARK: 反射漏掉了
+      getter worker_budget_per_day : T_share_type
+      getter max_predicate_opcode : UInt16
+      getter fee_liquidation_threshold : T_share_type
+      getter accounts_per_fee_scale : UInt16
+      getter account_fee_scale_bitshifts : UInt8
+      getter max_authority_depth : UInt8
+      getter extensions : Ext
+
+      def initialize(@current_fees,
+                     @block_interval,
+                     @maintenance_interval,
+                     @maintenance_skip_slots,
+                     @committee_proposal_review_period,
+                     @maximum_transaction_size,
+                     @maximum_block_size,
+                     @maximum_time_until_expiration,
+                     @maximum_proposal_lifetime,
+                     @maximum_asset_whitelist_authorities,
+                     @maximum_asset_feed_publishers,
+                     @maximum_witness_count,
+                     @maximum_committee_count,
+                     @maximum_authority_membership,
+                     @reserve_percent_of_fee,
+                     @network_percent_of_fee,
+                     @lifetime_referrer_percent_of_fee,
+                     @cashback_vesting_period_seconds,
+                     @cashback_vesting_threshold,
+                     @count_non_member_votes,
+                     @allow_non_member_whitelists,
+                     @witness_pay_per_block,
+                     @worker_budget_per_day,
+                     @max_predicate_opcode,
+                     @fee_liquidation_threshold,
+                     @accounts_per_fee_scale,
+                     @account_fee_scale_bitshifts,
+                     @max_authority_depth,
+                     @extensions)
+      end
+    end
+
+    struct OP_committee_member_update_global_parameters
+      alias Fee_parameters_type = Fee_parameters_type_default
+
+      include Graphene::Serialize::Composite(self)
+
+      getter fee : T_asset
+      getter new_parameters : T_chain_parameters
+
+      def initialize(@fee,
+                     @new_parameters)
+      end
+    end
 
     struct T_linear_vesting_policy_initializer
       include Graphene::Serialize::Composite(self)
@@ -867,6 +1111,8 @@ module Graphene
     alias T_vesting_policy_initializer = Tm_static_variant(T_linear_vesting_policy_initializer, T_cdd_vesting_policy_initializer, T_instant_vesting_policy_initializer)
 
     struct OP_vesting_balance_create
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -884,6 +1130,8 @@ module Graphene
     end
 
     struct OP_vesting_balance_withdraw
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -918,6 +1166,8 @@ module Graphene
     alias T_worker_initializer = Tm_static_variant(T_refund_worker_initializer, T_vesting_balance_worker_initializer, T_burn_worker_initializer)
 
     struct OP_worker_create
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -927,7 +1177,6 @@ module Graphene
       getter daily_pay : T_share_type
       getter name : String
       getter url : String
-
       getter initializer : T_worker_initializer
 
       def initialize(@fee,
@@ -942,6 +1191,8 @@ module Graphene
     end
 
     struct OP_custom
+      alias Fee_parameters_type = Fee_parameters_type_with_per_kbytes
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -1014,6 +1265,8 @@ module Graphene
     alias T_assert_predicate = Tm_static_variant(T_assert_predicate_account_name_eq_lit, T_assert_predicate_asset_symbol_eq_lit, T_assert_predicate_block_id)
 
     struct OP_assert
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -1031,6 +1284,8 @@ module Graphene
     end
 
     struct OP_balance_claim
+      alias Fee_parameters_type = Fee_parameters_type_empty
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -1048,6 +1303,8 @@ module Graphene
     end
 
     struct OP_override_transfer
+      alias Fee_parameters_type = Fee_parameters_type_with_per_kbytes
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -1125,6 +1382,12 @@ module Graphene
     end
 
     struct OP_transfer_to_blind
+      record Fee_parameters_type,
+        fee : UInt64,
+        price_per_output : UInt32 do
+        include Graphene::Serialize::Composite(self)
+      end
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -1142,6 +1405,12 @@ module Graphene
     end
 
     struct OP_blind_transfer
+      record Fee_parameters_type,
+        fee : UInt64,
+        price_per_output : UInt32 do
+        include Graphene::Serialize::Composite(self)
+      end
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -1155,6 +1424,8 @@ module Graphene
     end
 
     struct OP_transfer_from_blind
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -1172,9 +1443,11 @@ module Graphene
     end
 
     # TODO:OP virtual Asset_settle_cancel
-    alias OP_asset_settle_cancel = Graphene::Serialize::T_unsupported_type
+    alias OP_asset_settle_cancel = T_unsupported_type_virtual_op
 
     struct OP_asset_claim_fees
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       struct Ext
@@ -1200,9 +1473,11 @@ module Graphene
     end
 
     # TODO:OP virtual Fba_distribute
-    alias OP_fba_distribute = Graphene::Serialize::T_unsupported_type
+    alias OP_fba_distribute = T_unsupported_type_virtual_op
 
     struct OP_bid_collateral
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -1220,9 +1495,11 @@ module Graphene
     end
 
     # TODO:OP virtual Execute_bid
-    alias OP_execute_bid = Graphene::Serialize::T_unsupported_type
+    alias OP_execute_bid = T_unsupported_type_virtual_op
 
     struct OP_asset_claim_pool
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -1240,6 +1517,8 @@ module Graphene
     end
 
     struct OP_asset_update_issuer
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -1263,6 +1542,12 @@ module Graphene
     alias T_htlc_hash = Tm_static_variant(T_hash_rmd160, T_hash_sha1, T_hash_sha256, T_hash_hash160)
 
     struct OP_htlc_create
+      record Fee_parameters_type,
+        fee : UInt64,
+        fee_per_day : UInt64 do
+        include Graphene::Serialize::Composite(self)
+      end
+
       include Graphene::Serialize::Composite(self)
 
       struct Ext
@@ -1296,6 +1581,12 @@ module Graphene
     end
 
     struct OP_htlc_redeem
+      record Fee_parameters_type,
+        fee : UInt64,
+        fee_per_kb : UInt64 do
+        include Graphene::Serialize::Composite(self)
+      end
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -1313,9 +1604,15 @@ module Graphene
     end
 
     # TODO:OP virtual Htlc_redeemed
-    alias OP_htlc_redeemed = Graphene::Serialize::T_unsupported_type
+    alias OP_htlc_redeemed = T_unsupported_type_virtual_op
 
     struct OP_htlc_extend
+      record Fee_parameters_type,
+        fee : UInt64,
+        fee_per_day : UInt64 do
+        include Graphene::Serialize::Composite(self)
+      end
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -1333,17 +1630,31 @@ module Graphene
     end
 
     # TODO:OP virtual Htlc_refund
-    alias OP_htlc_refund = Graphene::Serialize::T_unsupported_type
+    alias OP_htlc_refund = T_unsupported_type_virtual_op
 
     # TODO:OP 3
     # Custom_authority_create                   = 54
     # Custom_authority_update                   = 55
     # Custom_authority_delete                   = 56
-    alias OP_custom_authority_create = Graphene::Serialize::T_unsupported_type
-    alias OP_custom_authority_update = Graphene::Serialize::T_unsupported_type
-    alias OP_custom_authority_delete = Graphene::Serialize::T_unsupported_type
+
+    struct T_unsupported_type_custom_authority < T_unsupported_type_base
+      record Fee_parameters_type,
+        basic_fee : UInt64,
+        price_per_byte : UInt64 do
+        include Graphene::Serialize::Composite(self)
+      end
+    end
+
+    alias OP_custom_authority_create = T_unsupported_type_custom_authority
+    alias OP_custom_authority_update = T_unsupported_type_custom_authority
+
+    struct OP_custom_authority_delete < T_unsupported_type_base
+      alias Fee_parameters_type = Fee_parameters_type_default
+    end
 
     struct OP_ticket_create
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -1361,6 +1672,8 @@ module Graphene
     end
 
     struct OP_ticket_update
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -1380,6 +1693,8 @@ module Graphene
     end
 
     struct OP_liquidity_pool_create
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -1403,6 +1718,8 @@ module Graphene
     end
 
     struct OP_liquidity_pool_delete
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -1418,6 +1735,8 @@ module Graphene
     end
 
     struct OP_liquidity_pool_deposit
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -1437,6 +1756,8 @@ module Graphene
     end
 
     struct OP_liquidity_pool_withdraw
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -1454,6 +1775,8 @@ module Graphene
     end
 
     struct OP_liquidity_pool_exchange
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -1473,6 +1796,8 @@ module Graphene
     end
 
     struct OP_samet_fund_create
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -1494,6 +1819,8 @@ module Graphene
     end
 
     struct OP_samet_fund_delete
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -1510,6 +1837,8 @@ module Graphene
     end
 
     struct OP_samet_fund_update
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -1531,6 +1860,8 @@ module Graphene
     end
 
     struct OP_samet_fund_borrow
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -1550,6 +1881,8 @@ module Graphene
     end
 
     struct OP_samet_fund_repay
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -1571,6 +1904,8 @@ module Graphene
     end
 
     struct OP_credit_offer_create
+      alias Fee_parameters_type = Fee_parameters_type_with_per_kbytes
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -1606,6 +1941,8 @@ module Graphene
     end
 
     struct OP_credit_offer_delete
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -1622,6 +1959,8 @@ module Graphene
     end
 
     struct OP_credit_offer_update
+      alias Fee_parameters_type = Fee_parameters_type_with_per_kbytes
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -1655,6 +1994,8 @@ module Graphene
     end
 
     struct OP_credit_offer_accept
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -1680,6 +2021,8 @@ module Graphene
     end
 
     struct OP_credit_deal_repay
+      alias Fee_parameters_type = Fee_parameters_type_default
+
       include Graphene::Serialize::Composite(self)
 
       getter fee : T_asset
@@ -1701,7 +2044,7 @@ module Graphene
     end
 
     # TODO:OP virtual Credit_deal_expired
-    alias OP_credit_deal_expired = Graphene::Serialize::T_unsupported_type
+    alias OP_credit_deal_expired = T_unsupported_type_virtual_op
 
     abstract struct T_transaction_virtual
       getter ref_block_num : UInt16
@@ -1753,6 +2096,12 @@ module Graphene
       alias T_operation = Graphene::Serialize::Tm_static_variant(
           {% for member in ::BitShares::Blockchain::Operations.constants %}
             {{ "OP_#{member.downcase}".id }},
+          {% end %}
+        )
+
+      alias T_fee_parameter = Graphene::Serialize::Tm_static_variant(
+          {% for member in ::BitShares::Blockchain::Operations.constants %}
+            {{ "OP_#{member.downcase}".id }}::Fee_parameters_type,
           {% end %}
         )
     {% end %}
