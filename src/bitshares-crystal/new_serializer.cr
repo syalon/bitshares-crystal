@@ -384,7 +384,7 @@ module Graphene
       getter force_settlement_delay_sec : UInt32
       getter force_settlement_offset_percent : UInt16
       getter maximum_force_settlement_volume : UInt16
-      getter short_backing_asset : Tm_set(Tm_protocol_id_type(ObjectType::Asset))
+      getter short_backing_asset : Tm_protocol_id_type(ObjectType::Asset)
       getter extensions : Ext
 
       def initialize(@feed_lifetime_sec,

@@ -1162,7 +1162,7 @@ module BitShares
       add_field :force_settlement_delay_sec, T_uint32
       add_field :force_settlement_offset_percent, T_uint16
       add_field :maximum_force_settlement_volume, T_uint16
-      add_field :short_backing_asset, Tm_set(Tm_protocol_id_type(ObjectType::Asset))
+      add_field :short_backing_asset, Tm_protocol_id_type(ObjectType::Asset)
       add_field :extensions, Ext
     end
 
