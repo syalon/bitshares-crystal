@@ -166,7 +166,7 @@ module BitShares
 
       # TODO:异常后取消定时器
 
-      @client.call_net("broadcast_transaction_with_callback", [broadcast_transaction_callback, obj])
+      @client.call_net("broadcast_transaction_with_callback", [obj], callback: broadcast_transaction_callback)
 
       resp = result_channel.receive
       case resp

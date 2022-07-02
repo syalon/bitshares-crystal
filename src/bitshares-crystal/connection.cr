@@ -12,12 +12,21 @@ module BitShares
     KGWS_MAX_RECV_LIFE = 8
 
     alias ChannelDataType = JSON::Any | BaseError
+    alias SubscribeCallbackType = (Bool, JSON::Any | String) -> Bool
 
-    enum Status
+    # => 仅连接中 状态类型
+    private enum ConnectStatus
       Pending
 
       Connected
       Timeout
+
+      Closed
+    end
+
+    # => 完整生命周期 状态类型
+    enum Status
+      Pending
 
       Logined
 
@@ -44,26 +53,30 @@ module BitShares
     end
 
     @websock : HTTP::WebSocket? = nil
+
+    getter graphene_chain_config : JSON::Any? = nil # => 石墨烯链配置信息，如果 database API 未开启则默认为 nil。
+    getter graphene_address_prefix = ""             # => 石墨烯链地址前缀信息，如果 database API 未开启则默认为 空。
+
     getter status = Status::Pending
     @timer_keep_alive : Proc(Nil)? = nil
     @_send_life = KGWS_MAX_SEND_LIFE
     @_recv_life = KGWS_MAX_RECV_LIFE
 
     # 同步调用服务器 API 接口
-    def call(api_name : String, method : String, params)
+    def call(api_name : String, method : String, params : Tuple | Array | Nil, callback : SubscribeCallbackType? = nil)
       raise SocketClosed.new("socket is not connected, status: #{@status}.") unless @status.logined?
-      return async_send_data(@api_ids[api_name], method, params).await
+      return async_send_data(@api_ids[api_name], method, params, callback: callback).await
     end
 
     # 同时调用多个 API 接口，具体参数参考 `call` 方法。
     def multi_call(*args)
-      return args.map { |arg| async_call(arg[0], arg[1], arg[2]?) }.map(&.await)
+      return args.map { |arg| async_call(arg[0], arg[1], arg[2]?, arg[3]?) }.map(&.await)
     end
 
     # 异步调用服务器 API 接口
-    def async_call(api_name : String, method : String, params) : Future
+    def async_call(api_name : String, method : String, params : Tuple | Array | Nil, callback : SubscribeCallbackType? = nil) : Future
       raise SocketClosed.new("socket is not connected, status: #{@status}.") unless @status.logined?
-      async_send_data(@api_ids[api_name], method, params)
+      async_send_data(@api_ids[api_name], method, params, callback: callback)
     end
 
     # 关闭websocket连接，会自动触发 on_close 事件。
@@ -86,7 +99,7 @@ module BitShares
 
       @api_ids = Hash(String, Int32).new
       @normal_callback_hash = Hash(Int32, Future).new
-      @subscribe_callback_hash = Hash(Int32, Serialize::Raw::SubscribeCallbackType).new
+      @subscribe_callback_hash = Hash(Int32, SubscribeCallbackType).new
 
       @websock = open_websocket(node_url, timeout: timeout)
 
@@ -100,13 +113,13 @@ module BitShares
       Log.debug { "ready to open url: #{uri}" }
 
       wait_connecting_channel = Channel(HTTP::WebSocket | Exception).new(1)
-      connect_status = Status::Pending
+      connect_status = ConnectStatus::Pending
 
       # => 超时处理
       if timeout
         BitShares::Utility.delay(timeout) do
           if connect_status.pending?
-            connect_status = Status::Timeout
+            connect_status = ConnectStatus::Timeout
             wait_connecting_channel.send(TimeoutError.new)
           end
         end
@@ -122,7 +135,7 @@ module BitShares
           tmp_socket.on_close { |code, str| on_close(code, str) }
 
           if connect_status.pending?
-            connect_status = Status::Connected
+            connect_status = ConnectStatus::Connected
             wait_connecting_channel.send(tmp_socket)
             tmp_socket.run
           else
@@ -130,7 +143,7 @@ module BitShares
           end
         rescue e : Socket::ConnectError
           if connect_status.pending?
-            connect_status = Status::Closed
+            connect_status = ConnectStatus::Closed
             wait_connecting_channel.send(e)
           end
         end
@@ -162,11 +175,17 @@ module BitShares
       @_recv_life = KGWS_MAX_RECV_LIFE
 
       # => 登录服务器
-      async_send_data(1, "login", [@username, @password]).await
+      async_send_data(1, "login", {@username, @password}).await
 
       # => 初始化 API ID
       api_ids_list = @api_list.map { |api_name| async_send_data(1, api_name) }.map(&.await)
       @api_list.each_with_index { |api_name, idx| @api_ids[api_name] = api_ids_list[idx].as_i }
+
+      # => 初始化链配置信息
+      if database_api_id = @api_ids["database"]?
+        @graphene_chain_config = graphene_chain_config = async_send_data(database_api_id, "get_config").await
+        @graphene_address_prefix = graphene_chain_config["GRAPHENE_ADDRESS_PREFIX"].as_s
+      end
 
       # => 启动心跳计时器
       @timer_keep_alive = start_loop_timer(seconds: 5) { __internal_keep_alive_timer_tick }
@@ -271,7 +290,7 @@ module BitShares
       end
     end
 
-    private def async_send_data(api_id : Int32, method : String, params = nil) : Future
+    private def async_send_data(api_id : Int32, method : String, params : Tuple | Array | Nil = nil, callback : SubscribeCallbackType? = nil) : Future
       # => ID计数器
       @currentId += 1
 
@@ -285,54 +304,30 @@ module BitShares
       # => [network_broadcast api]
       # => broadcast_transaction_with_callback
 
-      if params.nil?
-        params = Serialize::Raw.new([] of Serialize::Raw)
-      else
-        params = Serialize::Raw.new(params)
-      end
+      # => 处理 callback 参数
+      final_params = if callback
+                       @subscribe_callback_hash[@currentId] = callback
+                       case params
+                       in Tuple
+                         {@currentId, *params}
+                       in Array
+                         tmp = Array(typeof(params[0]) | typeof(@currentId)).new
+                         tmp << @currentId
+                         tmp.concat(params)
+                         tmp
+                       in Nil
+                         {@currentId}
+                       end
+                     else
+                       params || Tuple.new
+                     end
 
-      # pp params.as_a
-
-      # TODO:replace proc to id
-      # meth = params[1]
-      # if meth == 'set_subscribe_callback' or
-      #   meth == 'subscribe_to_market' or
-      #   meth == 'broadcast_transaction_with_callback' or
-      #   meth == 'set_pending_transaction_callback'
-
-      #   # => 订阅的 callback 替换为 @currentId 传送到服务器。
-      #   sub_calback = params[2][0]
-      #   params[2][0] = @currentId
-
-      #   # => 保存订阅callback
-      #   @subscribe_callback_hash[@currentId] = sub_calback
-      # end
-
-      new_params = [] of Serialize::Raw
-
-      params.as_a.each_with_index do |value_or_callback, idx|
-        callback = value_or_callback.as_callback?
-        if callback
-          if idx == 0
-            @subscribe_callback_hash[@currentId] = callback
-            # => 订阅的 callback 替换为 @currentId 传送到服务器。
-            value_or_callback.value = @currentId
-
-            new_params << value_or_callback
-          else
-            raise "The CALLBACK can only be at the first element of the params parameter."
-          end
-        else
-          new_params << value_or_callback
-        end
-      end
-
-      # => 序列化
-      json = {"id" => @currentId, "method" => "call", "params" => [api_id, method, Serialize::Raw.new(new_params)]}
+      # => 序列化 TODO: PublicKey to json 可能缺少公钥前缀？
+      json = {id: @currentId, method: "call", params: {api_id, method, final_params}}
 
       # => 发送数据
       @_send_life = KGWS_MAX_SEND_LIFE
-      @websock.try &.send(json.to_json)
+      @websock.try &.send(json.to_graphene_json(graphene_address_prefix: @graphene_address_prefix))
 
       future = @normal_callback_hash[@currentId] = Future.new
       return future
@@ -345,28 +340,28 @@ module BitShares
     # => api_name   - database、network_broadcast、history、custom_operations
     # => REMARK：asset api大部分节点默认未开启。
     # --------------------------------------------------------------------------
-    def call(api_name, method, params = nil)
-      call_api(api_name, method, params)
+    def call(api_name, method, params = nil, callback : GrapheneWebSocket::SubscribeCallbackType? = nil)
+      call_api(api_name, method, params, callback: callback)
     end
 
-    def call_db(method, params = nil)
-      call("database", method, params)
+    def call_db(method, params = nil, callback : GrapheneWebSocket::SubscribeCallbackType? = nil)
+      call("database", method, params, callback: callback)
     end
 
-    def call_net(method, params = nil)
-      call("network_broadcast", method, params)
+    def call_net(method, params = nil, callback : GrapheneWebSocket::SubscribeCallbackType? = nil)
+      call("network_broadcast", method, params, callback: callback)
     end
 
-    def call_history(method, params = nil)
-      call("history", method, params)
+    def call_history(method, params = nil, callback : GrapheneWebSocket::SubscribeCallbackType? = nil)
+      call("history", method, params, callback: callback)
     end
 
-    def call_custom_operations(method, params = nil)
-      call("custom_operations", method, params)
+    def call_custom_operations(method, params = nil, callback : GrapheneWebSocket::SubscribeCallbackType? = nil)
+      call("custom_operations", method, params, callback: callback)
     end
 
-    def call_asset(method, params = nil)
-      call("asset", method, params)
+    def call_asset(method, params = nil, callback : GrapheneWebSocket::SubscribeCallbackType? = nil)
+      call("asset", method, params, callback: callback)
     end
 
     def batch_call_api(*args)
@@ -439,21 +434,10 @@ module BitShares
         return gen_websocket
       else
         # => 状态处理
-
-        # Pending
-
-        # Connected
-        # Timeout
-
-        # Logined
-
-        # Closed
-        # Closing
-
         case sock.status
-        when .pending?, .logined? # => 正在初始化、已经连接中
+        in .pending?, .logined? # => 正在初始化、已经连接中
           return sock
-        when .closed?, .closing? # => 正在断开连接、已断开连接
+        in .closed?, .closing? # => 正在断开连接、已断开连接
           if @config.auto_restart
             return gen_websocket
           else
@@ -461,24 +445,23 @@ module BitShares
             raise "WebSocket disconnected..."
             # return BitShares::Promise.reject("websock disconnected...")
           end
-        else
-          raise "unknown socket status: #{sock.status}"
         end
       end
     end
 
     private def sync_query_network_arguments
-      data_array = safe_get_websocket.multi_call({"database", "get_chain_properties"}, {"database", "get_config"})
+      sock = safe_get_websocket
 
-      @graphene_chain_properties = data_array[0]
-      @graphene_chain_config = data_array[1]
+      @graphene_chain_properties = sock.call("database", "get_chain_properties", nil)
+      @graphene_chain_config = sock.graphene_chain_config
+
       @graphene_chain_id = @graphene_chain_properties.not_nil!["chain_id"].as_s
       @graphene_core_asset_symbol = @graphene_chain_config.not_nil!["GRAPHENE_SYMBOL"].as_s
       @graphene_address_prefix = @graphene_chain_config.not_nil!["GRAPHENE_ADDRESS_PREFIX"].as_s
     end
 
-    private def call_api(api_name : String, method : String, params)
-      return safe_get_websocket.call(api_name, method, params)
+    private def call_api(api_name : String, method : String, params, callback : GrapheneWebSocket::SubscribeCallbackType? = nil)
+      return safe_get_websocket.call(api_name, method, params, callback: callback)
     end
   end
 end

@@ -46,7 +46,7 @@ module BitShares
           return true
         end
       }
-      call_db("set_block_applied_callback", [set_block_applied_callback])
+      call_db("set_block_applied_callback", callback: set_block_applied_callback)
 
       # 循环监控新的区块
       while true
