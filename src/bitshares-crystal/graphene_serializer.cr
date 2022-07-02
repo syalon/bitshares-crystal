@@ -871,6 +871,26 @@ class String
   end
 end
 
+struct NamedTuple
+  include Graphene::Serialize::Pack(T)
+
+  def pack(io)
+    {% for key in T %}
+      self[:{{ key.id }}].pack(io)
+    {% end %}
+  end
+
+  def self.unpack(io) : self
+    {% begin %}
+      return NamedTuple.new(
+      {% for key, value in T %}
+        {{key.id}}: {{value.id}}.unpack(io),
+      {% end %}
+      )
+    {% end %}
+  end
+end
+
 class Array(T)
   include Graphene::Serialize::Pack(self)
 
