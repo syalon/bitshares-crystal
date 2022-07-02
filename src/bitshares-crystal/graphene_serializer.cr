@@ -507,6 +507,61 @@ module Graphene
       end
     end
 
+    # :nodoc:
+    struct Tm_fixed_bytes(Size)
+      include Pack(self)
+
+      getter value : Bytes
+
+      def initialize(bytes : Bytes)
+        raise "fixed size error." if bytes.size != Size
+        @value = bytes
+      end
+
+      def pack(io)
+        io.write(@value)
+      end
+
+      def self.unpack(io) : self
+        slice = Bytes.new(Size.as?(Int32).not_nil!)
+        io.read(slice)
+        return new(slice)
+      end
+
+      def to_json(json : JSON::Builder) : Nil
+        @value.to_json(json)
+      end
+    end
+
+    # :nodoc:
+    struct Tm_static_fixed_bytes(Size)
+      include Pack(self)
+
+      getter unsafe_value : StaticArray(UInt8, Size)
+
+      def initialize(bytes : Bytes)
+        raise "static fixed size error." if bytes.size != Size
+        @unsafe_value = StaticArray(UInt8, Size).new { |i| bytes[i] }
+      end
+
+      def pack(io)
+        io.write(@unsafe_value.to_slice)
+      end
+
+      def self.unpack(io) : self
+        target = uninitialized self
+
+        io.read(target.unsafe_value.to_slice)
+
+        return target
+      end
+
+      def to_json(json : JSON::Builder) : Nil
+        @unsafe_value.to_slice.to_json(json)
+      end
+    end
+
+    # :nodoc:
     alias T_share_type = Int64
 
     # => TODO:u32 or u64
@@ -728,10 +783,14 @@ macro graphene_struct(name, *properties)
   end
 end
 
+# 扩展 JSON::Builder 对象，支持定义部分参数。
 class JSON::Builder
   property user_args : Graphene::Serialize::Arguments? = nil
 end
 
+# 扩展部分内部类。
+#
+# 以支持 pack 和 self.unpack 方法。
 struct Bool
   include Graphene::Serialize::Pack(self)
 
@@ -854,58 +913,6 @@ struct Slice(T)
     {% else %}
       raise "unsupported type."
     {% end %}
-  end
-end
-
-struct FixedBytes(Size)
-  include Graphene::Serialize::Pack(self)
-
-  getter value : Bytes
-
-  def initialize(bytes : Bytes)
-    raise "size error." if bytes.size != Size
-    @value = bytes
-  end
-
-  def pack(io)
-    io.write(@value)
-  end
-
-  def self.unpack(io) : self
-    slice = Bytes.new(Size.as?(Int32).not_nil!)
-    io.read(slice)
-    return new(slice)
-  end
-
-  def to_json(json : JSON::Builder) : Nil
-    @value.to_json(json)
-  end
-end
-
-struct StaticFixedBytes(Size)
-  include Graphene::Serialize::Pack(self)
-
-  getter unsafe_value : StaticArray(UInt8, Size)
-
-  def initialize(bytes : Bytes)
-    raise "size error." if bytes.size != Size
-    @unsafe_value = StaticArray(UInt8, Size).new { |i| bytes[i] }
-  end
-
-  def pack(io)
-    io.write(@unsafe_value.to_slice)
-  end
-
-  def self.unpack(io) : self
-    target = uninitialized self
-
-    io.read(target.unsafe_value.to_slice)
-
-    return target
-  end
-
-  def to_json(json : JSON::Builder) : Nil
-    @unsafe_value.to_slice.to_json(json)
   end
 end
 
