@@ -605,6 +605,11 @@ module Graphene
 
       getter value : UInt64
 
+      def initialize(s : UInt8, t : UInt8, i : UInt64)
+        raise "invalid argument i: #{i}" if i >> 48 != 0
+        @value = (s.to_u64 << 56) | (t.to_u64 << 48) | i
+      end
+
       def initialize(@value : UInt64)
       end
 
