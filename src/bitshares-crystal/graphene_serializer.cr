@@ -1,3 +1,4 @@
+require "json"
 require "crystal-secp256k1-zkp" # => for Secp256k1Zkp
 require "./define"              # => for Tm_protocol_id_type
 
@@ -87,13 +88,31 @@ module Graphene
     end
 
     # :nodoc:
+    record Arguments, graphene_address_prefix : String
+
+    # :nodoc:
     module Pack(T)
+      # => 序列化为二进制流数据。
       def pack
         BinaryIO.new.tap { |io| pack(io) }.to_slice
       end
 
+      abstract def pack(io : BinaryIO)
+
+      # => 反序列化为指定类型的对象。
       def self.unpack(data : Bytes)
         return T.unpack(BinaryIO.new(data))
+      end
+
+      # => 生成 json 字符串，和默认的 to_json 不同，该方法可以设置部分类型需要的相关参数。比如账号公钥的前缀字符串。
+      def to_graphene_json(graphene_address_prefix = "") : String
+        String.build do |str_io|
+          JSON.build(str_io) do |json_builder|
+            json_builder.user_args = Arguments.new(graphene_address_prefix: graphene_address_prefix)
+
+            to_json(json_builder)
+          end
+        end
       end
     end
 
@@ -116,6 +135,16 @@ module Graphene
             raise Unsupported_default_value.new("Composite(T) do not support default values. please use the initialize method.")
           {% end %}
           @{{ ivar.id }} = {{ ivar.type.id }}.unpack(io)
+        {% end %}
+      end
+
+      def to_json(json : JSON::Builder) : Nil
+        {% begin %}
+          NamedTuple.new(
+          {% for ivar in @type.instance_vars %}
+            {{ ivar.id }}: @{{ ivar.id }},
+          {% end %}
+          ).to_json(json)
         {% end %}
       end
 
@@ -190,6 +219,16 @@ module Graphene
         {% end %}
       end
 
+      def to_json(json : JSON::Builder) : Nil
+        {% begin %}
+          NamedTuple.new(
+          {% for ivar in @type.instance_vars %}
+            {{ ivar.id }}: @{{ ivar.id }},
+          {% end %}
+          ).to_json(json)
+        {% end %}
+      end
+
       macro included
 
         def self.unpack(io) : self
@@ -205,8 +244,8 @@ module Graphene
     struct Tm_protocol_id_type(ReqObjectType)
       private RegProtocalIdFormat = /^[\d]+\.([\d]+)\.([\d]+)$/
 
-      include Comparable(self)                # => 支持比较运算，需要实现 <=> 方法。
-      include Graphene::Serialize::Pack(self) # => 支持石墨烯序列化
+      include Comparable(self) # => 支持比较运算，需要实现 <=> 方法。
+      include Pack(self)       # => 支持石墨烯序列化
 
       property instance : UInt64
 
@@ -246,6 +285,10 @@ module Graphene
         return new(io.read_varint32)
       end
 
+      def to_json(json : JSON::Builder) : Nil
+        to_s.to_json(json)
+      end
+
       # => 实现比较运算。
       def <=>(other)
         return @instance <=> other.instance
@@ -254,6 +297,8 @@ module Graphene
 
     # :nodoc:
     struct Tm_optional(T)
+      include Pack(self)
+
       property value : T?
 
       # 是否有效判断 REMARK: 不直接用 value 判断，那样对于 false 的值会判断错误。e.g.: Tm_optional(bool) 值为 false 时候 if value 会误认为字段不存在。
@@ -281,11 +326,16 @@ module Graphene
                 end
         return new(value)
       end
+
+      def to_json(json : JSON::Builder) : Nil
+        @value.to_json(json)
+      end
     end
 
     # :nodoc:
     struct Tm_static_variant(*T)
       include Comparable(Tm_static_variant(*T)) # => 支持比较运算，需要实现 <=> 方法。
+      include Pack(Tm_static_variant(*T))
 
       getter index : Int32 = 0
       property value : Union(*T)
@@ -338,16 +388,9 @@ module Graphene
         return new(optype.unpack(io))
       end
 
-      # def self.to_object(opdata : Raw?) : Raw?
-      #   opdata = opdata.not_nil!.as_a
-      #   assert(opdata.size == 2)
-      #   type_id = opdata[0].as_i.to_i32
-
-      #   optype = type_id_to_optype(type_id)
-      #   raise "invalid type id: #{type_id}" if optype.nil?
-
-      #   return Raw.new([Raw.new(type_id), optype.to_object(opdata.last).not_nil!])
-      # end
+      def to_json(json : JSON::Builder) : Nil
+        @value.to_json(json)
+      end
 
       # => 实现比较运算。
       def <=>(other)
@@ -359,6 +402,8 @@ module Graphene
     #
     #  [{Key1, Value1}, {Key2, Value2}, ...]
     struct Tm_map(KeyT, ValueT)
+      include Pack(self)
+
       @flat_list = Array(Tuple(KeyT, ValueT)).new
 
       def add(item : Tuple(KeyT, ValueT))
@@ -389,6 +434,10 @@ module Graphene
         return result
       end
 
+      def to_json(json : JSON::Builder) : Nil
+        @flat_list.to_json(json)
+      end
+
       def sort_data
         # => TODO: nosort
         # => TODO: sort by
@@ -399,6 +448,8 @@ module Graphene
 
     # => TODO:元素不可重复？限制...
     struct Tm_set(T)
+      include Pack(self)
+
       @flat_list = Array(T).new
 
       def add(item : T)
@@ -423,6 +474,10 @@ module Graphene
         return result
       end
 
+      def to_json(json : JSON::Builder) : Nil
+        @flat_list.to_json(json)
+      end
+
       def sort_data
         # => TODO: nosort
         # => TODO: sort by
@@ -433,7 +488,7 @@ module Graphene
 
     # 空集合，用于代替 Set(T_future_extensions) 类型，提高效率。避免 Set 分配堆内存。
     struct Tm_empty_set(T)
-      include Graphene::Serialize::Pack(self)
+      include Pack(self)
 
       def pack(io)
         io.write_varint32(0)
@@ -446,13 +501,17 @@ module Graphene
 
         return new
       end
+
+      def to_json(json : JSON::Builder) : Nil
+        Tuple.new.to_json(json)
+      end
     end
 
     alias T_share_type = Int64
 
     # => TODO:u32 or u64
     struct T_varint32
-      include Graphene::Serialize::Pack(self)
+      include Pack(self)
 
       getter value : UInt32
 
@@ -466,16 +525,24 @@ module Graphene
       def self.unpack(io) : self
         return new(io.read_varint32.to_u32)
       end
+
+      def to_json(json : JSON::Builder) : Nil
+        @value.to_json(json)
+      end
     end
 
     struct T_void
-      include Graphene::Serialize::Pack(self)
+      include Pack(self)
 
       def pack(io)
       end
 
       def self.unpack(io) : self
         return new
+      end
+
+      def to_json(json : JSON::Builder) : Nil
+        nil.to_json(json)
       end
     end
 
@@ -484,8 +551,8 @@ module Graphene
     struct T_vote_id
       private RegVoteIdFormat = /^([0-9]+):([0-9]+)$/
 
-      include Comparable(self)                # => 支持比较运算，需要实现 <=> 方法。
-      include Graphene::Serialize::Pack(self) # => 支持石墨烯序列化。
+      include Comparable(self) # => 支持比较运算，需要实现 <=> 方法。
+      include Pack(self)       # => 支持石墨烯序列化。
 
       @content : UInt32 = 0 # => 低 8 位是 vote type，高 24 位是 instance id。
 
@@ -522,14 +589,56 @@ module Graphene
         return new(io.read_bytes(UInt32))
       end
 
+      def to_json(json : JSON::Builder) : Nil
+        to_s.to_json(json)
+      end
+
       # => 实现比较运算。
       def <=>(other)
         return vote_instance_id <=> other.vote_instance_id
       end
     end
 
+    # => 参考：object_id.hpp
+    struct T_object_id_type
+      include Pack(self)
+
+      getter value : UInt64
+
+      def initialize(@value : UInt64)
+      end
+
+      def to_s
+        "#{space}.#{type}.#{instance}"
+      end
+
+      def pack(io)
+        @value.pack(io)
+      end
+
+      def self.unpack(io) : self
+        return new(UInt64.unpack(io))
+      end
+
+      def to_json(json : JSON::Builder) : Nil
+        to_s.to_json(json)
+      end
+
+      private def space : UInt8
+        return (@value >> 56).to_u8
+      end
+
+      private def type : UInt8
+        return (@value >> 48 & 0x00ff).to_u8
+      end
+
+      private def instance : UInt64
+        return @value & (UInt64::MAX >> 16)
+      end
+    end
+
     struct T_time_point_sec
-      include Graphene::Serialize::Pack(self)
+      include Pack(self)
 
       getter value : UInt32
 
@@ -552,10 +661,14 @@ module Graphene
       def self.unpack(io) : self
         return new(UInt32.unpack(io))
       end
+
+      def to_json(json : JSON::Builder) : Nil
+        to_s.to_json(json)
+      end
     end
 
     struct T_unsupported_type
-      include Graphene::Serialize::Pack(self)
+      include Pack(self)
 
       def pack(io)
         raise "not supported"
@@ -571,6 +684,11 @@ module Graphene
       def <=>(other)
         raise "not supported"
         return 0
+      end
+
+      def to_json(json : JSON::Builder) : Nil
+        raise "not supported"
+        nil.to_json(json)
       end
     end
   end
@@ -603,6 +721,10 @@ macro graphene_struct(name, *properties)
     {{yield}}
     
   end
+end
+
+class JSON::Builder
+  property user_args : Graphene::Serialize::Arguments? = nil
 end
 
 struct Bool
@@ -643,6 +765,7 @@ end
       def self.unpack(io) : self
         io.read_bytes({{int.id}})
       end
+
     end
   {% end %}
 
@@ -657,6 +780,17 @@ struct Enum
 
   def self.unpack(io) : self
     return new(typeof(self.values.first.value).unpack(io))
+  end
+
+  def to_json(json : JSON::Builder) : Nil
+    if json.user_args
+      # => REMARK: 石墨烯通讯用 json 取 value 值。
+      self.value.to_json(json)
+    else
+      # => 其他情况直接调用以前的 to_json 方法。
+      # => 之前的在 /json/to_json.cr 文件中定义
+      previous_def
+    end
   end
 end
 
@@ -708,6 +842,14 @@ struct Slice(T)
       raise "unsupported type."
     {% end %}
   end
+
+  def to_json(json : JSON::Builder) : Nil
+    {% if T == UInt8 %}
+      hexstring.to_json(json)
+    {% else %}
+      raise "unsupported type."
+    {% end %}
+  end
 end
 
 struct FixedBytes(Size)
@@ -728,6 +870,10 @@ struct FixedBytes(Size)
     slice = Bytes.new(Size.as?(Int32).not_nil!)
     io.read(slice)
     return new(slice)
+  end
+
+  def to_json(json : JSON::Builder) : Nil
+    @value.to_json(json)
   end
 end
 
@@ -752,6 +898,10 @@ struct StaticFixedBytes(Size)
 
     return target
   end
+
+  def to_json(json : JSON::Builder) : Nil
+    @unsafe_value.to_slice.to_json(json)
+  end
 end
 
 class Secp256k1Zkp::PublicKey
@@ -764,6 +914,12 @@ class Secp256k1Zkp::PublicKey
 
   def self.unpack(io) : self
     return new(io.read_n_bytes(33))
+  end
+
+  def to_json(json : JSON::Builder) : Nil
+    prefix = json.user_args.try(&.graphene_address_prefix) || ""
+
+    to_wif(prefix).to_json(json)
   end
 
   # => 实现比较运算。
@@ -782,6 +938,12 @@ class Secp256k1Zkp::Address
   def self.unpack(io) : self
     raise "not supported"
     return new("", "") # => not reached
+  end
+
+  def to_json(json : JSON::Builder) : Nil
+    prefix = json.user_args.try(&.graphene_address_prefix) || ""
+
+    to_wif(prefix).to_json(json)
   end
 
   # => 实现比较运算。

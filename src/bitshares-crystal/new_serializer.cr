@@ -39,6 +39,11 @@ module Graphene
         return new
       end
 
+      def to_json(json : JSON::Builder) : Nil
+        raise "not supported"
+        nil.to_json(json)
+      end
+
       # => 实现比较运算。
       def <=>(other)
         raise "not supported"
