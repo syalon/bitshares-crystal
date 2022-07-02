@@ -1336,7 +1336,7 @@ module Graphene
       getter from : Tm_optional(Secp256k1Zkp::PublicKey)
       getter amount : T_asset
       getter blinding_factor : T_hash_sha256 # blind_factor_type -> SHA256
-      getter commitment : FixedBytes(33)
+      getter commitment : Tm_fixed_bytes(33)
       getter check : UInt32
 
       def initialize(@from,
@@ -1363,7 +1363,7 @@ module Graphene
     struct T_blind_input
       include Graphene::Serialize::Composite(self)
 
-      getter commitment : FixedBytes(33)
+      getter commitment : Tm_fixed_bytes(33)
       getter owner : T_authority
 
       def initialize(@commitment,
@@ -1374,7 +1374,7 @@ module Graphene
     struct T_blind_output
       include Graphene::Serialize::Composite(self)
 
-      getter commitment : FixedBytes(33)
+      getter commitment : Tm_fixed_bytes(33)
       getter range_proof : Bytes # only required if there is more than one blind output
       getter owner : T_authority
       getter stealth_memo : Tm_optional(T_stealth_confirmation)
@@ -1540,10 +1540,10 @@ module Graphene
       end
     end
 
-    alias T_hash_rmd160 = FixedBytes(20)  # => RMD160
-    alias T_hash_sha1 = FixedBytes(20)    # => SHA1 or SHA160
-    alias T_hash_sha256 = FixedBytes(32)  # => SHA256
-    alias T_hash_hash160 = FixedBytes(20) # => HASH160 = RMD160(SHA256(data))
+    alias T_hash_rmd160 = Tm_fixed_bytes(20)  # => RMD160
+    alias T_hash_sha1 = Tm_fixed_bytes(20)    # => SHA1 or SHA160
+    alias T_hash_sha256 = Tm_fixed_bytes(32)  # => SHA256
+    alias T_hash_hash160 = Tm_fixed_bytes(20) # => HASH160 = RMD160(SHA256(data))
     alias T_htlc_hash = Tm_static_variant(T_hash_rmd160, T_hash_sha1, T_hash_sha256, T_hash_hash160)
 
     struct OP_htlc_create
@@ -2071,7 +2071,7 @@ module Graphene
     end
 
     abstract struct T_signed_transaction_virtual < T_transaction_virtual
-      getter signatures : Array(FixedBytes(65))
+      getter signatures : Array(Tm_fixed_bytes(65))
 
       def initialize(@ref_block_num,
                      @ref_block_prefix,
