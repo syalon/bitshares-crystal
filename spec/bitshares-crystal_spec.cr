@@ -8,6 +8,31 @@ class TestTask < BitShares::Task
   end
 end
 
+client = BitShares::Client.new BitShares::Config.new.tap { |cfg| cfg.switch_bts_mainnet! }
+
+# client.wallet.import_key("")
+# pp client.do_account_create(
+#   registrar: "1.2.xx",
+#   referrer: "1.2.xx",
+#   referrer_percent: 0,
+#   voting_account: "1.2.5",
+#   name: "name",
+#   owner_public_key: "",
+#   active_public_key: "",
+#   memo_public_key: "",
+# )
+
+client.loop_new_block(0.5) do |new_block_number|
+  begin
+    pp client.call_history("get_block_operation_history", [new_block_number])
+  rescue e : BitShares::ResponseError
+    pp e
+  end
+end
+
+# client.wallet.clear
+exit
+
 describe BitShares do
   # it "test tx" do
   #   client = BitShares::Client.new BitShares::Config.new.tap { |cfg| cfg.switch_bts_testnet! }
