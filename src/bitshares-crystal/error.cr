@@ -17,6 +17,10 @@ module BitShares
     def to_s(io : IO) : Nil
       @error.to_s(io)
     end
+
+    def graphene_error_message
+      @error["message"]?.try(&.as_s?) || ""
+    end
   end
 
   class TimeoutError < BaseError
