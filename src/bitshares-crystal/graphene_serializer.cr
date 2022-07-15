@@ -114,6 +114,11 @@ module Graphene
           end
         end
       end
+
+      # => 从 json 构造对象
+      def self.from_graphene_json(data : JSON::Any?, graphene_address_prefix = "")
+        T.from_graphene_json(data, Arguments.new(graphene_address_prefix: graphene_address_prefix))
+      end
     end
 
     # :nodoc:
@@ -129,7 +134,7 @@ module Graphene
         {% end %}
       end
 
-      def __unpack_all_instance_vars(io)
+      def __all_instance_vars_unpack(io)
         {% for ivar in @type.instance_vars %}
           {% if ivar.has_default_value? %}
             raise Unsupported_default_value.new("Composite(T) do not support default values. please use the initialize method.")
@@ -148,6 +153,12 @@ module Graphene
         {% end %}
       end
 
+      def __all_instance_vars_from_graphene_json(json, args)
+        {% for ivar in @type.instance_vars %}
+          @{{ ivar.id }} = {{ ivar.type.id }}.from_graphene_json(json.try(&.dig?("{{ ivar.id }}")), args)
+        {% end %}
+      end
+
       macro included
 
         def self.unpack(io) : self
@@ -158,7 +169,18 @@ module Graphene
             target = T.new
           {% end %}
 
-          target.__unpack_all_instance_vars(io)
+          target.__all_instance_vars_unpack(io)
+          return target
+        end
+
+        def self.from_graphene_json(json : JSON::Any?, args) : self
+          {% if @type.struct? %}
+            target = uninitialized T
+          {% else %}
+            target = T.new
+          {% end %}
+
+          target.__all_instance_vars_from_graphene_json(json, args)
           return target
         end
 
@@ -195,7 +217,7 @@ module Graphene
         end
       end
 
-      def __unpack_all_instance_vars(io)
+      def __all_instance_vars_unpack(io)
         len = io.read_varint32
         return if len <= 0
 
@@ -229,11 +251,28 @@ module Graphene
         {% end %}
       end
 
+      def __all_instance_vars_from_graphene_json(json, args)
+        {% for ivar in @type.instance_vars %}
+          @{{ ivar.id }} = {{ ivar.type.id }}.from_graphene_json(json.try(&.dig?("{{ ivar.id }}")), args)
+        {% end %}
+      end
+
       macro included
 
         def self.unpack(io) : self
           target = T.new
-          target.__unpack_all_instance_vars(io)
+          target.__all_instance_vars_unpack(io)
+          return target
+        end
+
+        def self.from_graphene_json(json : JSON::Any?, args) : self
+          {% if @type.struct? %}
+            target = uninitialized T
+          {% else %}
+            target = T.new
+          {% end %}
+
+          target.__all_instance_vars_from_graphene_json(json, args)
           return target
         end
 
@@ -289,6 +328,10 @@ module Graphene
         to_s.to_json(json)
       end
 
+      def self.from_graphene_json(json : JSON::Any?, args) : self
+        return new(json.not_nil!.as_s)
+      end
+
       # => 实现比较运算。
       def <=>(other)
         return @instance <=> other.instance
@@ -323,6 +366,15 @@ module Graphene
                   nil
                 else
                   T.unpack(io)
+                end
+        return new(value)
+      end
+
+      def self.from_graphene_json(json : JSON::Any?, args) : self
+        value = if json
+                  T.from_graphene_json(json, args)
+                else
+                  nil
                 end
         return new(value)
       end
@@ -392,6 +444,14 @@ module Graphene
         @value.to_json(json)
       end
 
+      def self.from_graphene_json(json : JSON::Any?, args) : self
+        index = json.not_nil![0].as_i
+        optype = index_to_optype(index)
+        raise "invalid type id: #{index}" if optype.nil?
+
+        return new(optype.from_graphene_json(json.not_nil![1], args))
+      end
+
       # => 实现比较运算。
       def <=>(other)
         return @index <=> other.index
@@ -438,6 +498,16 @@ module Graphene
         @flat_list.to_json(json)
       end
 
+      def self.from_graphene_json(json : JSON::Any?, args) : self
+        result = new
+
+        json.not_nil!.as_a.each do |item|
+          result.add({KeyT.from_graphene_json(item[0], args), ValueT.from_graphene_json(item[1], args)})
+        end
+
+        return result
+      end
+
       def sort_data
         # => TODO: nosort
         # => TODO: sort by
@@ -478,6 +548,14 @@ module Graphene
         @flat_list.to_json(json)
       end
 
+      def self.from_graphene_json(json : JSON::Any?, args) : self
+        result = new
+
+        json.not_nil!.as_a.each { |item| result.add(T.from_graphene_json(item, args)) }
+
+        return result
+      end
+
       def sort_data
         # => TODO: nosort
         # => TODO: sort by
@@ -505,6 +583,12 @@ module Graphene
       def to_json(json : JSON::Builder) : Nil
         Tuple.new.to_json(json)
       end
+
+      def self.from_graphene_json(json : JSON::Any?, args) : self
+        raise "Empty set size must be zero." if json.not_nil!.as_a.size != 0
+
+        return new
+      end
     end
 
     # :nodoc:
@@ -530,6 +614,10 @@ module Graphene
 
       def to_json(json : JSON::Builder) : Nil
         @value.to_json(json)
+      end
+
+      def self.from_graphene_json(json : JSON::Any?, args) : self
+        return new(json.not_nil!.as_s.hexbytes)
       end
     end
 
@@ -559,6 +647,10 @@ module Graphene
       def to_json(json : JSON::Builder) : Nil
         @unsafe_value.to_slice.to_json(json)
       end
+
+      def self.from_graphene_json(json : JSON::Any?, args) : self
+        return new(json.not_nil!.as_s.hexbytes)
+      end
     end
 
     # :nodoc:
@@ -584,6 +676,10 @@ module Graphene
       def to_json(json : JSON::Builder) : Nil
         @value.to_json(json)
       end
+
+      def self.from_graphene_json(json : JSON::Any?, args) : self
+        return new(json.not_nil!.to_u32)
+      end
     end
 
     struct T_void
@@ -598,6 +694,10 @@ module Graphene
 
       def to_json(json : JSON::Builder) : Nil
         nil.to_json(json)
+      end
+
+      def self.from_graphene_json(json : JSON::Any?, args) : self
+        return new
       end
     end
 
@@ -648,6 +748,10 @@ module Graphene
         to_s.to_json(json)
       end
 
+      def self.from_graphene_json(json : JSON::Any?, args) : self
+        return new(json.not_nil!.to_u32)
+      end
+
       # => 实现比较运算。
       def <=>(other)
         return vote_instance_id <=> other.vote_instance_id
@@ -663,6 +767,12 @@ module Graphene
       def initialize(s : UInt8, t : UInt8, i : UInt64)
         raise "invalid argument i: #{i}" if i >> 48 != 0
         @value = (s.to_u64 << 56) | (t.to_u64 << 48) | i
+      end
+
+      def initialize(oid : String)
+        t = oid.split(".")
+
+        initialize(t[0].to_u8, t[1].to_u8, t[2].to_u64)
       end
 
       def initialize(@value : UInt64)
@@ -682,6 +792,10 @@ module Graphene
 
       def to_json(json : JSON::Builder) : Nil
         to_s.to_json(json)
+      end
+
+      def self.from_graphene_json(json : JSON::Any?, args) : self
+        return new(json.not_nil!.as_s)
       end
 
       private def space : UInt8
@@ -725,6 +839,10 @@ module Graphene
       def to_json(json : JSON::Builder) : Nil
         to_s.to_json(json)
       end
+
+      def self.from_graphene_json(json : JSON::Any?, args) : self
+        return new(json.not_nil!.as_s)
+      end
     end
 
     struct T_unsupported_type
@@ -749,6 +867,12 @@ module Graphene
       def to_json(json : JSON::Builder) : Nil
         raise "not supported"
         nil.to_json(json)
+      end
+
+      def self.from_graphene_json(json : JSON::Any?, args) : self
+        raise "not supported"
+        # => not reached
+        return new
       end
     end
   end
@@ -801,6 +925,10 @@ struct Bool
   def self.unpack(io) : self
     io.read_byte.not_nil! != 0
   end
+
+  def self.from_graphene_json(json : JSON::Any?, args) : self
+    return json.not_nil!.is_true?
+  end
 end
 
 struct UInt8
@@ -812,6 +940,34 @@ struct UInt8
 
   def self.unpack(io) : self
     io.read_byte.not_nil!
+  end
+
+  def self.from_graphene_json(json : JSON::Any?, args) : self
+    return json.not_nil!.as_i.to_u8
+  end
+end
+
+struct UInt16
+  def self.from_graphene_json(json : JSON::Any?, args) : self
+    return json.not_nil!.as_i.to_u16
+  end
+end
+
+struct UInt32
+  def self.from_graphene_json(json : JSON::Any?, args) : self
+    return json.not_nil!.as_i64.to_u32
+  end
+end
+
+struct UInt64
+  def self.from_graphene_json(json : JSON::Any?, args) : self
+    return json.not_nil!.to_u64
+  end
+end
+
+struct Int64
+  def self.from_graphene_json(json : JSON::Any?, args) : self
+    return json.not_nil!.to_i64
   end
 end
 
@@ -856,6 +1012,10 @@ struct Enum
       previous_def
     end
   end
+
+  def self.from_graphene_json(json : JSON::Any?, args) : self
+    return new(typeof(self.values.first.value).from_graphene_json(json, args))
+  end
 end
 
 class String
@@ -868,6 +1028,10 @@ class String
 
   def self.unpack(io) : self
     io.read_string(io.read_varint32)
+  end
+
+  def self.from_graphene_json(json : JSON::Any?, args) : self
+    return json.not_nil!.as_s
   end
 end
 
@@ -889,6 +1053,16 @@ struct NamedTuple
       )
     {% end %}
   end
+
+  def self.from_graphene_json(json : JSON::Any?, args) : self
+    {% begin %}
+      return NamedTuple.new(
+      {% for key, value in T %}
+        {{key.id}}: {{value.id}}.from_graphene_json(json.try(&.dig?("{{ key.id }}")), args),
+      {% end %}
+      )
+    {% end %}
+  end
 end
 
 class Array(T)
@@ -901,6 +1075,10 @@ class Array(T)
 
   def self.unpack(io) : self
     return new(io.read_varint32) { T.unpack(io) }
+  end
+
+  def self.from_graphene_json(json : JSON::Any?, args) : self
+    return json.not_nil!.as_a.map { |v| T.from_graphene_json(v, args) }
   end
 end
 
@@ -934,6 +1112,14 @@ struct Slice(T)
       raise "unsupported type."
     {% end %}
   end
+
+  def self.from_graphene_json(json : JSON::Any?, args) : self
+    {% if T == UInt8 %}
+      return json.not_nil!.as_s.hexbytes
+    {% else %}
+      raise "unsupported type."
+    {% end %}
+  end
 end
 
 class Secp256k1Zkp::PublicKey
@@ -952,6 +1138,10 @@ class Secp256k1Zkp::PublicKey
     prefix = json.user_args.try(&.graphene_address_prefix) || ""
 
     to_wif(prefix).to_json(json)
+  end
+
+  def self.from_graphene_json(json : JSON::Any?, args) : self
+    return from_wif(json.not_nil!.as_s, args.graphene_address_prefix)
   end
 
   # => 实现比较运算。
@@ -976,6 +1166,11 @@ class Secp256k1Zkp::Address
     prefix = json.user_args.try(&.graphene_address_prefix) || ""
 
     to_wif(prefix).to_json(json)
+  end
+
+  def self.from_graphene_json(json : JSON::Any?, args) : self
+    raise "not supported"
+    return new("", "") # => not reached
   end
 
   # => 实现比较运算。

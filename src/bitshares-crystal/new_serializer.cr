@@ -44,6 +44,12 @@ module Graphene
         nil.to_json(json)
       end
 
+      def self.from_graphene_json(json : JSON::Any?, args) : self
+        raise "not supported"
+        # => not reached
+        return new
+      end
+
       # => 实现比较运算。
       def <=>(other)
         raise "not supported"
