@@ -441,7 +441,7 @@ module Graphene
       end
 
       def to_json(json : JSON::Builder) : Nil
-        @value.to_json(json)
+        [@index, @value].to_json(json)
       end
 
       def self.from_graphene_json(json : JSON::Any?, args) : self
