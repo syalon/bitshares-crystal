@@ -11,6 +11,8 @@ module BitShares
     KGWS_MAX_SEND_LIFE = 4
     KGWS_MAX_RECV_LIFE = 8
 
+    private API_ID_LOGIN = 1
+
     alias ChannelDataType = JSON::Any | BaseError
     alias SubscribeCallbackType = (Bool, JSON::Any | String) -> Bool
 
@@ -61,6 +63,17 @@ module BitShares
     @timer_keep_alive : Proc(Nil)? = nil
     @_send_life = KGWS_MAX_SEND_LIFE
     @_recv_life = KGWS_MAX_RECV_LIFE
+
+    # 获取服务器各种 api limit 配置信息
+    def get_application_options
+      raise SocketClosed.new("socket is not connected, status: #{@status}.") unless @status.logined?
+      begin
+        return async_send_data(API_ID_LOGIN, "get_config").await
+      rescue e : ResponseError
+        # => REMARK: 不支持该方法的节点支持返回 nil。采用默认值。
+        return nil
+      end
+    end
 
     # 同步调用服务器 API 接口
     def call(api_name : String, method : String, params : Tuple | Array | Nil, callback : SubscribeCallbackType? = nil)
@@ -175,10 +188,10 @@ module BitShares
       @_recv_life = KGWS_MAX_RECV_LIFE
 
       # => 登录服务器
-      async_send_data(1, "login", {@username, @password}).await
+      async_send_data(API_ID_LOGIN, "login", {@username, @password}).await
 
       # => 初始化 API ID
-      api_ids_list = @api_list.map { |api_name| async_send_data(1, api_name) }.map(&.await)
+      api_ids_list = @api_list.map { |api_name| async_send_data(API_ID_LOGIN, api_name) }.map(&.await)
       @api_list.each_with_index { |api_name, idx| @api_ids[api_name] = api_ids_list[idx].as_i }
 
       # => 初始化链配置信息
@@ -378,6 +391,7 @@ module BitShares
     getter graphene_core_asset_symbol = ""
     getter graphene_chain_properties : JSON::Any? = nil
     getter graphene_chain_config : JSON::Any? = nil
+    getter application_options : JSON::Any? = nil
 
     def initialize(@config : BitShares::Config)
       if @config.api_nodes.is_a?(String)
@@ -424,6 +438,10 @@ module BitShares
           end
         end
       end
+
+      # => 不同API节点的配置信息不同，每次联系新的节点都需要重新初始化。
+      @application_options = s.get_application_options
+
       return s
     end
 
