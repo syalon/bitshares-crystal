@@ -8,6 +8,37 @@ class TestTask < BitShares::Task
   end
 end
 
+client = BitShares::Client.new BitShares::Config.new.tap { |cfg| cfg.api_nodes = "ws://101.35.27.58:10099" }
+client.wallet.import_password("xx", "xx")
+begin
+  # pp client.build { |tx|
+  #   tx.add_operation :withdraw_permission_create, {
+  #     fee:                      {amount: 0, asset_id: "1.3.0"},
+  #     withdraw_from_account:    "1.2.23173",
+  #     authorized_account:       "1.2.23363",
+  #     withdrawal_limit:         {amount: 100_00000, asset_id: "1.3.0"},
+  #     withdrawal_period_sec:    3_u32,
+  #     periods_until_expiration: 3600*24*366,
+  #     period_start_time:        Time.utc.to_unix + 10,
+  #   }
+  # }
+
+  pp client.build { |tx|
+    tx.add_operation :withdraw_permission_claim, {
+      fee:                   {amount: 0, asset_id: "1.3.0"},
+      withdraw_permission:   "1.12.136",
+      withdraw_from_account: "1.2.23173",
+      withdraw_to_account:   "1.2.23363",
+      amount_to_withdraw:    {amount: 10_00000, asset_id: "1.3.0"},
+    }
+  }
+rescue e : BitShares::ResponseError
+  pp e.graphene_error_message
+  pp e
+end
+
+exit
+
 client = BitShares::Client.new BitShares::Config.new.tap { |cfg| cfg.switch_bts_mainnet! }
 
 # client.wallet.import_key("")
