@@ -1,6 +1,22 @@
 require "./spec_helper"
 require "crystal-secp256k1-zkp"
 
+# # => ==== 注册测试网账号 ======
+# begin
+#   client = BitShares::Client.new BitShares::Config.new.tap { |cfg| cfg.api_nodes = "ws://101.35.27.58:10099" }
+#   client.wallet.import_password("infwallet-test", "password")
+#   private_key = Secp256k1Zkp::PrivateKey.from_account_and_password("test10001", "123456", "active")
+#   public_key = private_key.to_public_key
+#   reg_key = public_key.to_wif("TEST")
+#   registrar = "1.2.23173"
+#   pp client.do_account_create(registrar, registrar, 0, "1.2.5", "test10001", reg_key, reg_key, reg_key)
+# rescue e : BitShares::ResponseError
+#   pp e.graphene_error_message
+#   pp e
+# end
+# exit
+# #=============================
+
 class TestTask < BitShares::Task
   def main
     puts "test task"
