@@ -28,4 +28,7 @@ module BitShares
 
   class SocketClosed < BaseError
   end
+
+  class CallTimeoutError < TimeoutError
+  end
 end

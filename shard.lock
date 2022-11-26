@@ -2,5 +2,5 @@ version: 2.0
 shards:
   crystal-secp256k1-zkp:
     git: https://github.com/syalon/crystal-secp256k1-zkp.git
-    version: 0.1.0+git.commit.c487624a60d9af42f821972098cdc553101e1c86
+    version: 0.1.0+git.commit.ef1d8f54dcadc6fa4f84141b13bc69effa5ca69a
 

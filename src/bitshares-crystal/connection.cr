@@ -7,7 +7,7 @@ require "./error"
 module BitShares
   Log = ::Log.for("websocket")
 
-  class GrapheneWebSocket
+  private class GrapheneWebSocket
     KGWS_MAX_SEND_LIFE = 4
     KGWS_MAX_RECV_LIFE = 8
 
@@ -38,13 +38,24 @@ module BitShares
 
     struct Future
       @channel = Channel(ChannelDataType).new(1)
+      @call_timeout : Int64? = nil
+
+      def initialize(@call_timeout = nil)
+      end
+
+      def is_timeout?(now_ts : Int64) : Bool
+        if (t = @call_timeout) && now_ts >= t
+          return true
+        end
+        return false
+      end
 
       def error(e)
-        @channel.send(e)
+        on_trigger(e)
       end
 
       def done(result)
-        @channel.send(result)
+        on_trigger(result)
       end
 
       def await : JSON::Any
@@ -52,14 +63,21 @@ module BitShares
         raise result if result.is_a?(BaseError)
         return result
       end
+
+      private def on_trigger(result_or_error)
+        return if @channel.closed?
+        @channel.send(result_or_error)
+        @channel.close
+      end
     end
 
     @websock : HTTP::WebSocket? = nil
 
     getter graphene_chain_config : JSON::Any? = nil # => 石墨烯链配置信息，如果 database API 未开启则默认为 nil。
     getter graphene_address_prefix = ""             # => 石墨烯链地址前缀信息，如果 database API 未开启则默认为 空。
+    getter status = Status::Pending                 # => 当前连接状态
+    getter call_timeout : Int64                     # => call的默认超时时间 单位：秒
 
-    getter status = Status::Pending
     @timer_keep_alive : Proc(Nil)? = nil
     @_send_life = KGWS_MAX_SEND_LIFE
     @_recv_life = KGWS_MAX_RECV_LIFE
@@ -105,18 +123,20 @@ module BitShares
     end
 
     # TODO: ode_url, logger, api_list, keep_alive_callback = nil
-    def initialize(node_url : String, timeout : Time::Span? = nil, @api_list = ["database", "network_broadcast", "history"])
+    def initialize(node_url : String, open_timeout : Time::Span? = nil, @api_list = ["database", "network_broadcast", "history"], call_timeout = 5_i64)
       @username = ""
       @password = ""
       @currentId = 0
-
+      @call_timeout = call_timeout
       @api_ids = Hash(String, Int32).new
       @normal_callback_hash = Hash(Int32, Future).new
       @subscribe_callback_hash = Hash(Int32, SubscribeCallbackType).new
 
-      @websock = open_websocket(node_url, timeout: timeout)
+      @websock = open_websocket(node_url, timeout: open_timeout)
 
       connect_to_server
+
+      spawn start_call_timeout_loop
     end
 
     # --------------------------------------------------------------------------
@@ -210,6 +230,36 @@ module BitShares
     end
 
     # --------------------------------------------------------------------------
+    # ● (private) 循环检测 call 调用超时
+    # --------------------------------------------------------------------------
+    private def start_call_timeout_loop
+      Log.debug { "call timeout loop started..." }
+      loop do
+        break if @status.closed? || @status.closing?
+
+        keys = @normal_callback_hash.keys
+        if !keys.empty?
+          now_ts = Time.utc.to_unix_ms
+          keys.each do |callback_id|
+            future = @normal_callback_hash[callback_id]?
+            next if future.nil?
+            # => 超时检测
+            if future.is_timeout?(now_ts)
+              Log.debug { "future call timeout: #{callback_id}" }
+
+              @normal_callback_hash.delete(callback_id)
+              future.error(CallTimeoutError.new)
+            end
+          end
+        end
+
+        # => 检测间隔、不用太高频
+        sleep(0.01)
+      end
+      Log.debug { "call timeout loop finished..." }
+    end
+
+    # --------------------------------------------------------------------------
     # ● (private) 启动一个定时器，返回一个定时器的控制 Proc。
     # --------------------------------------------------------------------------
     private def start_loop_timer(seconds, &block) : Proc(Bool)
@@ -298,6 +348,7 @@ module BitShares
             future.done(json["result"])
           end
         else
+          # => 这里可能是无效响应、也可能是服务器返回数据太慢超时了。
           Log.error { "unknown websocket response, normal callback." }
         end
       end
@@ -342,7 +393,8 @@ module BitShares
       @_send_life = KGWS_MAX_SEND_LIFE
       @websock.try &.send(json.to_graphene_json(graphene_address_prefix: @graphene_address_prefix))
 
-      future = @normal_callback_hash[@currentId] = Future.new
+      # => 返回 future 对象
+      future = @normal_callback_hash[@currentId] = Future.new(call_timeout: Time.utc.to_unix_ms + @call_timeout * 1000)
       return future
     end
   end
@@ -353,28 +405,28 @@ module BitShares
     # => api_name   - database、network_broadcast、history、custom_operations
     # => REMARK：asset api大部分节点默认未开启。
     # --------------------------------------------------------------------------
-    def call(api_name, method, params = nil, callback : GrapheneWebSocket::SubscribeCallbackType? = nil)
-      call_api(api_name, method, params, callback: callback)
+    def call_api(api_name, method, params = nil, callback : GrapheneWebSocket::SubscribeCallbackType? = nil)
+      _call_api_core(api_name, method, params, callback: callback)
     end
 
     def call_db(method, params = nil, callback : GrapheneWebSocket::SubscribeCallbackType? = nil)
-      call("database", method, params, callback: callback)
+      call_api("database", method, params, callback: callback)
     end
 
     def call_net(method, params = nil, callback : GrapheneWebSocket::SubscribeCallbackType? = nil)
-      call("network_broadcast", method, params, callback: callback)
+      call_api("network_broadcast", method, params, callback: callback)
     end
 
     def call_history(method, params = nil, callback : GrapheneWebSocket::SubscribeCallbackType? = nil)
-      call("history", method, params, callback: callback)
+      call_api("history", method, params, callback: callback)
     end
 
     def call_custom_operations(method, params = nil, callback : GrapheneWebSocket::SubscribeCallbackType? = nil)
-      call("custom_operations", method, params, callback: callback)
+      call_api("custom_operations", method, params, callback: callback)
     end
 
     def call_asset(method, params = nil, callback : GrapheneWebSocket::SubscribeCallbackType? = nil)
-      call("asset", method, params, callback: callback)
+      call_api("asset", method, params, callback: callback)
     end
 
     def batch_call_api(*args)
@@ -478,7 +530,7 @@ module BitShares
       @graphene_address_prefix = @graphene_chain_config.not_nil!["GRAPHENE_ADDRESS_PREFIX"].as_s
     end
 
-    private def call_api(api_name : String, method : String, params, callback : GrapheneWebSocket::SubscribeCallbackType? = nil)
+    private def _call_api_core(api_name : String, method : String, params, callback : GrapheneWebSocket::SubscribeCallbackType? = nil)
       return safe_get_websocket.call(api_name, method, params, callback: callback)
     end
   end
