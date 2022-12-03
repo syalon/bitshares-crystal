@@ -18,8 +18,8 @@ module BitShares
       @error.to_s(io)
     end
 
-    def graphene_error_message
-      @error["message"]?.try(&.as_s?) || ""
+    def graphene_error_message(default_message = "")
+      @error["message"]?.try(&.as_s?) || default_message
     end
   end
 
